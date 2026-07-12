@@ -24,6 +24,20 @@ export const Colors = {
   },
 } as const;
 
+export const Brand = {
+  primary: '#4D96FF',
+  primaryDark: '#2f6fd6',
+  accent: '#9B5DE5',
+  success: '#2BC48A',
+  warning: '#FFC93C',
+  danger: '#FF6B6B',
+  surface: '#F4F7FF',
+  card: '#FFFFFF',
+  shadow: 'rgba(45, 84, 160, 0.18)',
+} as const;
+
+export const Avatars = ['🦊', '🐱', '🐶', '🦁', '🐼', '🐸', '🦄', '🐯', '🐵', '🐢'];
+
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
