@@ -1,98 +1,129 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Button } from "@/components/Button";
+import { Mascot } from "@/components/Mascot";
+import { Brand, Spacing } from "@/constants/theme";
+import { auth } from "@/lib/storage";
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const user = auth.getCurrentUser();
+    if (user && user.onboarded) {
+      router.replace("/(tabs)");
+    }
+  }, [router]);
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + Spacing.six },
+      ]}
+    >
+      <View style={styles.heroCard}>
+        <Mascot emoji="🦸" size={120} />
+        <Text style={styles.title}>CyberSafe Kids</Text>
+        <Text style={styles.tagline}>
+          An edutainment adventure that teaches children aged 6–12 how to stay
+          safe from cybercrime.
+        </Text>
+      </View>
+
+      <View style={styles.features}>
+        <Feature emoji="🎮" text="Play fun lessons" />
+        <Feature emoji="🏆" text="Earn badges & streaks" />
+        <Feature emoji="🛡️" text="Learn real safety skills" />
+      </View>
+
+      <View style={styles.actions}>
+        <Button
+          label="Get Started"
+          fullWidth
+          onPress={() => router.push("/auth?mode=signup")}
+        />
+        <Pressable onPress={() => router.push("/auth?mode=login")}>
+          <Text style={styles.secondary}>I already have an account</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.footnote}>
+        Demo prototype · No backend your data stays on this device
+      </Text>
+    </ScrollView>
   );
 }
 
-export default function HomeScreen() {
+function Feature({ emoji, text }: { emoji: string; text: string }) {
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <View style={styles.feature}>
+      <Text style={styles.featureEmoji}>{emoji}</Text>
+      <Text style={styles.featureText}>{text}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: Brand.surface },
   container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.four,
-    alignItems: 'center',
+    paddingBottom: Spacing.six,
+    alignItems: "center",
+    gap: Spacing.five,
+  },
+  heroCard: {
+    alignItems: "center",
     gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    marginTop: Spacing.four,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 40,
+    fontWeight: "900",
+    color: "#1c2742",
+    textAlign: "center",
   },
-  code: {
-    textTransform: 'uppercase',
+  tagline: {
+    fontSize: 17,
+    color: "#5b6478",
+    textAlign: "center",
+    maxWidth: 420,
+    lineHeight: 24,
   },
-  stepContainer: {
+  features: { width: "100%", maxWidth: 420, gap: Spacing.two },
+  feature: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: Spacing.three,
+    shadowColor: Brand.shadow,
+    shadowOpacity: 0.6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featureEmoji: { fontSize: 28 },
+  featureText: { fontSize: 17, fontWeight: "700", color: "#2b3552" },
+  actions: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
+    gap: Spacing.three,
+    marginTop: Spacing.three,
+  },
+  secondary: { color: Brand.primary, fontSize: 15, fontWeight: "700" },
+  footnote: {
+    color: "#9aa3b5",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: Spacing.two,
   },
 });
