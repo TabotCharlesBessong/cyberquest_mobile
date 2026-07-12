@@ -1,4 +1,4 @@
-﻿CyberSafe Kids — Edutainment for Cybercrime Awareness | Project Proposal
+﻿CyberSafe Kids  Edutainment for Cybercrime Awareness | Project Proposal
 
 
 
@@ -104,7 +104,7 @@ CyberSafe Kids is an interactive edutainment platform designed to educate childr
 1. Design and develop an engaging, age-appropriate edutainment platform that teaches children foundational cybercrime awareness.
 2. Cover key cybercrime topics relevant to children, including cyberbullying, phishing, online grooming, password safety, and safe social media use.
 3. Evaluate the platform's effectiveness in improving cybercrime awareness and safe online behaviour among children through a structured pilot study.
-4. Create a scalable framework that can be extended to other target groups — teenagers, parents, and organisations — in future development phases.
+4. Create a scalable framework that can be extended to other target groups  teenagers, parents, and organisations  in future development phases.
 
 
 4.3 Scope of Phase 1
