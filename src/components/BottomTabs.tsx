@@ -1,5 +1,7 @@
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 import { Brand, Spacing } from '@/constants/theme';
 
@@ -10,18 +12,9 @@ export function BottomTabs() {
 
   return (
     <View style={styles.bar}>
-      <Tab
-        active={isHome}
-        emoji="🗺️"
-        label="Learn"
-        onPress={() => router.push('/')}
-      />
-      <Tab
-        active={!isHome}
-        emoji="⭐"
-        label="Profile"
-        onPress={() => router.push('/profile')}
-      />
+      <Tab active={isHome} emoji="🗺️" label="Learn" onPress={() => router.push('/')} />
+      <Tab active={!isHome && pathname.includes('rewards')} emoji="💎" label="Rewards" onPress={() => router.push('/(tabs)/rewards')} />
+      <Tab active={!isHome && pathname.includes('profile')} emoji="⭐" label="Profile" onPress={() => router.push('/(tabs)/profile')} />
     </View>
   );
 }
@@ -37,12 +30,45 @@ function Tab({
   label: string;
   onPress: () => void;
 }) {
+  const scale = useRef(new Animated.Value(active ? 1 : 0.9)).current;
+  const opacity = useRef(new Animated.Value(active ? 1 : 0.6)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: active ? 1 : 0.9,
+        friction: 4,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: active ? 1 : 0.6,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [active, scale, opacity]);
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
-      <View style={[styles.tabIconWrap, active && styles.tabIconActive]}>
+    <Pressable onPress={onPress} style={styles.tab}>
+      <Animated.View
+        style={[
+          styles.tabIconWrap,
+          active && styles.tabIconActive,
+          { transform: [{ scale }], opacity },
+        ]}
+      >
         <Text style={styles.tabEmoji}>{emoji}</Text>
-      </View>
-      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+      </Animated.View>
+      <Animated.Text
+        style={[
+          styles.tabLabel,
+          active && styles.tabLabelActive,
+          { opacity },
+        ]}
+      >
+        {label}
+      </Animated.Text>
     </Pressable>
   );
 }
@@ -63,7 +89,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  pressed: { opacity: 0.6 },
   tabIconWrap: {
     width: 46,
     height: 46,
