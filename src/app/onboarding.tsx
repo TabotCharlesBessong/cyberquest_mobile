@@ -1,70 +1,135 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Mascot } from '@/components/Mascot';
+import { FormProvider } from '@/components/FormComponents';
 import { Avatars, Brand, Spacing } from '@/constants/theme';
-import { auth } from '@/lib/storage';
+import { useZodForm } from '@/hooks/useZodForm';
+import { onboardingSchema } from '@/lib/schemas';
+import { useCurrentUser, useSetUser } from '@/hooks/useAuth';
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [user, setUser] = useState(auth.getCurrentUser());
+  const user = useCurrentUser();
+  const setUser = useSetUser();
   const [avatar, setAvatar] = useState(user?.avatar ?? '🦊');
+
+  const form = useZodForm(onboardingSchema, {
+    ageGroup: user?.ageGroup === 'B' ? 'B' : 'A',
+    avatar: user?.avatar ?? '🦊',
+  });
 
   useEffect(() => {
     if (!user) {
       router.replace('/');
       return;
     }
-    setAvatar(user.avatar);
+    if (user.ageGroup) {
+      router.replace('/(tabs)');
+    }
   }, [user, router]);
 
+  if (!user) return null;
+
   function finish() {
-    if (!user) return;
-    const updated = { ...user, avatar, onboarded: true };
-    auth.updateUser(updated);
+    const data = form.getValues();
+    const updated = {
+      ...user,
+      avatar: data.avatar,
+      ageGroup: data.ageGroup,
+      onboarded: true,
+    };
+    setUser(updated as any);
     router.replace('/(tabs)');
   }
 
-  if (!user) return null;
+  const selectedAgeGroup = form.watch('ageGroup');
 
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.four }]}>
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + Spacing.four },
+      ]}
+    >
       <View style={styles.header}>
         <Mascot emoji={avatar} size={104} />
         <Text style={styles.title}>Hi {user.name}! 👋</Text>
-        <Text style={styles.subtitle}>Pick a hero avatar for your adventure.</Text>
+        <Text style={styles.subtitle}>Let's set up your hero profile.</Text>
       </View>
 
-      <View style={styles.avatarGrid}>
-        {Avatars.map((a) => {
-          const selected = a === avatar;
-          return (
-            <Pressable
-              key={a}
-              onPress={() => setAvatar(a)}
-              style={[
-                styles.avatarCell,
-                selected && { backgroundColor: Brand.primary, borderColor: Brand.primaryDark },
-              ]}>
-              <Text style={styles.avatarEmoji}>{a}</Text>
-            </Pressable>
-          );
-        })}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Pick your avatar</Text>
+        <View style={styles.avatarGrid}>
+          {Avatars.map((a) => {
+            const selected = a === avatar;
+            return (
+              <Pressable
+                key={a}
+                onPress={() => {
+                  setAvatar(a);
+                  form.setValue('avatar', a);
+                }}
+                style={[
+                  styles.avatarCell,
+                  selected && { backgroundColor: Brand.primary, borderColor: Brand.primaryDark },
+                ]}
+              >
+                <Text style={styles.avatarEmoji}>{a}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Your age group</Text>
+        <View style={styles.ageGroupRow}>
+          <Pressable
+            onPress={() => form.setValue('ageGroup', 'A')}
+            style={[
+              styles.ageCard,
+              selectedAgeGroup === 'A' && { borderColor: Brand.primary, backgroundColor: '#eef4ff' },
+            ]}
+          >
+            <Text style={styles.ageEmoji}>🧒</Text>
+            <Text style={styles.ageTitle}>Ages 6–8</Text>
+            <Text style={styles.ageSub}>Group A</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => form.setValue('ageGroup', 'B')}
+            style={[
+              styles.ageCard,
+              selectedAgeGroup === 'B' && { borderColor: Brand.primary, backgroundColor: '#eef4ff' },
+            ]}
+          >
+            <Text style={styles.ageEmoji}>🧑‍🚀</Text>
+            <Text style={styles.ageTitle}>Ages 8–12</Text>
+            <Text style={styles.ageSub}>Group B</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.tips}>
-        <Tip emoji="🌍" text="Travel through 5 safe-world lands" />
+        <Tip emoji="🌍" text="Travel through safe-world lands" />
         <Tip emoji="🎣" text="Catch scams like a pro" />
         <Tip emoji="🏰" text="Build strong password castles" />
       </View>
 
-      <Button label="Start Learning" fullWidth onPress={finish} style={styles.start} />
+      <form.FormProvider>
+        <Button label="Start Learning" fullWidth onPress={() => form.handleSubmit(finish)()} style={styles.start} />
+      </form.FormProvider>
     </ScrollView>
   );
 }
@@ -90,12 +155,13 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: Spacing.two, marginTop: Spacing.three },
   title: { fontSize: 30, fontWeight: '900', color: '#1c2742' },
   subtitle: { fontSize: 15, color: '#5b6478', textAlign: 'center' },
+  section: { width: '100%', maxWidth: 420, gap: Spacing.two },
+  sectionLabel: { fontSize: 16, fontWeight: '800', color: '#3a4560', marginLeft: 4 },
   avatarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.two,
     justifyContent: 'center',
-    maxWidth: 360,
   },
   avatarCell: {
     width: 64,
@@ -113,6 +179,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatarEmoji: { fontSize: 34 },
+  ageGroupRow: { flexDirection: 'row', gap: Spacing.two },
+  ageCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: Spacing.three,
+    alignItems: 'center',
+    gap: Spacing.one,
+    borderWidth: 2,
+    borderColor: '#e2e8f4',
+  },
+  ageEmoji: { fontSize: 36 },
+  ageTitle: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
+  ageSub: { fontSize: 12, fontWeight: '700', color: '#7c869c' },
   tips: { width: '100%', maxWidth: 420, gap: Spacing.two },
   tip: {
     flexDirection: 'row',
