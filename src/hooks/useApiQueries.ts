@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { api, setToken } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
+import { trace } from '@/utils/debug';
 
 export const queryKeys = {
   auth: {
@@ -76,6 +77,15 @@ export function useSubmitLessonProgress() {
     onSuccess: (data) => {
       const result = data.data as { lessonProgress: unknown; moduleProgress: { lectureId: string; status: string; xpEarned: number; score: number; stars: number; completedAt: string | null }; xpEarned: number; newLevel: number };
       const updatedModule = result.moduleProgress;
+
+      if (__DEV__) {
+        trace('useSubmitLessonProgress success', {
+          lectureId: updatedModule.lectureId,
+          status: updatedModule.status,
+          xpEarned: result.xpEarned,
+          newLevel: result.newLevel,
+        });
+      }
 
       useAuthStore.setState((state) => {
         const modules = state.modules.map((m) =>

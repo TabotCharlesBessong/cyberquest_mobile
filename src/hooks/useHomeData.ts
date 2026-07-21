@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useLectures, useMyProgress } from './useApiQueries';
+import { trace } from '@/utils/debug';
 
 type Lecture = {
   id: string;
@@ -54,7 +55,18 @@ export function useHomeData() {
     if (index === 0) return true;
     const prev = lectures[index - 1];
     const prevProgress = modules.find((m) => m.lectureId === prev.id);
-    return prevProgress?.status === 'completed';
+    const unlocked = prevProgress?.status === 'completed';
+
+    trace('isUnlocked', {
+      index,
+      lectureId: prev.id,
+      lectureSlug: prev.slug,
+      moduleStatus: prevProgress?.status,
+      unlocked,
+      storeModulesCount: storeModules.length,
+    });
+
+    return unlocked;
   }
 
   const onRefresh = useCallback(() => {
