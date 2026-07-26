@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Celebration } from '@/components/Celebration';
 import { Mascot } from '@/components/Mascot';
 import { useLessonPlayer } from '@/hooks/useLessonPlayer';
+import { useSafeBack } from '@/lib/navigation';
 import type { LessonStep } from '@/data/types';
 import { Brand, Spacing } from '@/constants/theme';
 import { Pressable, ScrollView, Text, View, Animated } from 'react-native';
@@ -14,6 +15,7 @@ export default function LessonScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const lectureSlug = typeof params.lecture === 'string' ? params.lecture : undefined;
+  const safeBack = useSafeBack('/(tabs)');
 
   const {
     lecture,
@@ -67,10 +69,15 @@ export default function LessonScreen() {
         ]}
       >
         <Text style={{ color: '#7c869c' }}>{error || 'Lesson not found.'}</Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={{ color: Brand.primary, fontWeight: '700', marginTop: 12 }}>
-            Go back
-          </Text>
+        <Pressable
+          style={[styles.flex, { justifyContent: 'center', alignItems: 'center', paddingTop: insets.top }]}
+        >
+          <Text style={{ color: '#7c869c' }}>{error || 'Lesson not found.'}</Text>
+          <Pressable onPress={safeBack}>
+            <Text style={{ color: Brand.primary, fontWeight: '700', marginTop: 12 }}>
+              Go back
+            </Text>
+          </Pressable>
         </Pressable>
       </View>
     );
@@ -79,7 +86,7 @@ export default function LessonScreen() {
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.closeBtn}>
+        <Pressable onPress={safeBack} style={styles.closeBtn}>
           <Text style={styles.closeText}>✕</Text>
         </Pressable>
         <View style={styles.progressTrack}>
@@ -100,23 +107,29 @@ export default function LessonScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View
-          style={[
-            styles.step,
-            { opacity, transform: [{ translateY }, { translateX }] },
-          ]}
-        >
-          {step.type === 'story' ? (
-            <StoryView step={step} />
-          ) : (
-            <QuizView
-              step={step}
-              selected={selected}
-              answered={answered}
-              onChoose={chooseOption}
-            />
-          )}
-        </Animated.View>
+        {total === 0 || !step ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>This lesson has no content yet.</Text>
+          </View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.step,
+              { opacity, transform: [{ translateY }, { translateX }] },
+            ]}
+          >
+            {step.type === 'story' ? (
+              <StoryView step={step} />
+            ) : (
+              <QuizView
+                step={step}
+                selected={selected}
+                answered={answered}
+                onChoose={chooseOption}
+              />
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
 
       <View
@@ -125,7 +138,9 @@ export default function LessonScreen() {
           { paddingBottom: insets.bottom + Spacing.three },
         ]}
       >
-        {submitting ? (
+        {total === 0 || !step ? (
+          <Text style={styles.hintText}>No content available for this lesson.</Text>
+        ) : submitting ? (
           <Text style={styles.hintText}>Saving progress...</Text>
         ) : answered ? (
           <Pressable style={styles.continueBtn} onPress={next}>
@@ -153,7 +168,7 @@ export default function LessonScreen() {
         badgeName={lecture.badgeName}
         onContinue={() => {
           resetStepState();
-          router.back();
+          safeBack();
         }}
       />
     </View>
@@ -296,6 +311,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.four,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.six,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#7c869c',
+    textAlign: 'center',
   },
   step: { flex: 1 },
   footer: {

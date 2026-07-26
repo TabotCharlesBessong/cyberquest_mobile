@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import {
   Animated,
   Pressable,
@@ -12,12 +12,18 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProgressBar } from '@/components/ProgressBar';
+import { QuestBanner } from '@/components/QuestBanner';
+import { StatsCard } from '@/components/StatsCard';
 import { useHomeData } from '@/hooks/useHomeData';
+import { useRecordActivity } from '@/hooks/useApiQueries';
 import { Brand, Spacing } from '@/constants/theme';
+import { api } from '@/lib/api';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const recordActivity = useRecordActivity();
+  const dailyLoginRef = useRef(false);
   const {
     user,
     lectures,
@@ -32,7 +38,16 @@ export default function HomeScreen() {
     total,
     isUnlocked,
     onRefresh,
+    quests,
+    questsQuery,
   } = useHomeData();
+
+  useEffect(() => {
+    if (!dailyLoginRef.current && user) {
+      dailyLoginRef.current = true;
+      recordActivity.mutate('daily_login');
+    }
+  }, [user, recordActivity]);
 
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -71,6 +86,8 @@ export default function HomeScreen() {
     );
   }
 
+  const activeQuest = quests[0];
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -96,21 +113,41 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <View style={styles.statsRow}>
+        <StatsCard emoji="⭐" value={`${xp}`} label="XP" />
+        <StatsCard emoji="❤️" value={`${user?.hearts ?? 0}`} label="Hearts" />
+        <StatsCard emoji="💎" value={`${user?.gems ?? 0}`} label="Gems" accent />
+      </View>
+
       <View style={styles.xpCard}>
         <View style={styles.xpRow}>
-          <Text style={styles.xpLabel}>Daily XP</Text>
-          <Text style={styles.xpValue}>{xp} XP</Text>
+          <Text style={styles.xpLabel}>Level Progress</Text>
+          <Text style={styles.xpValue}>{xpIntoLevel} / {xpForNext} XP</Text>
         </View>
         <ProgressBar value={xpIntoLevel / xpForNext} color={Brand.success} />
       </View>
 
-      <View style={styles.dailyQuest}>
-        <Text style={styles.dailyEmoji}>⚡</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.dailyTitle}>Daily Quest</Text>
-          <Text style={styles.dailySub}>Complete 1 lesson today</Text>
-        </View>
-      </View>
+      {activeQuest && (
+        <QuestBanner
+          emoji="⚡"
+          title={activeQuest.title}
+          description={activeQuest.description}
+          progress={activeQuest.progress}
+          target={activeQuest.target}
+          isCompleted={activeQuest.isCompleted}
+          isClaimed={activeQuest.isClaimed}
+          xpReward={activeQuest.xpReward}
+          gemsReward={activeQuest.gemsReward}
+          onClaim={async () => {
+            try {
+              await api.gamification.claimQuestReward(activeQuest.id);
+              questsQuery.refetch();
+            } catch (e) {
+              console.warn('Failed to claim quest', e);
+            }
+          }}
+        />
+      )}
 
       <Text style={styles.sectionTitle}>Your Mission Map</Text>
 
@@ -228,6 +265,11 @@ const styles = StyleSheet.create({
   },
   streakEmoji: { fontSize: 20 },
   streakNum: { fontSize: 18, fontWeight: '900', color: '#ff8a3d' },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
   xpCard: {
     marginTop: Spacing.three,
     backgroundColor: '#fff',
@@ -247,20 +289,6 @@ const styles = StyleSheet.create({
   },
   xpLabel: { fontSize: 14, fontWeight: '800', color: '#3a4560' },
   xpValue: { fontSize: 14, fontWeight: '800', color: Brand.success },
-  dailyQuest: {
-    marginTop: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: Spacing.three,
-    borderWidth: 2,
-    borderColor: '#ffe2c2',
-  },
-  dailyEmoji: { fontSize: 28 },
-  dailyTitle: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
-  dailySub: { fontSize: 13, fontWeight: '600', color: '#7c869c' },
   sectionTitle: {
     marginTop: Spacing.five,
     marginBottom: Spacing.two,

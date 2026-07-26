@@ -18,12 +18,14 @@ import { useZodForm } from '@/hooks/useZodForm';
 import { useVerifyEmail, useResendVerification } from '@/hooks/useApiQueries';
 import { usePendingEmail, useSetPendingEmail, useAuthActions } from '@/hooks/useAuth';
 import { verifySchema, type VerifyInput } from '@/lib/schemas';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 export default function VerifyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack('/');
   const email = usePendingEmail() || (typeof params.email === 'string' ? params.email : '');
 
   const [error, setError] = useState('');
@@ -91,7 +93,7 @@ export default function VerifyScreen() {
         ]}
         keyboardShouldPersistTaps="always"
       >
-        <Pressable style={styles.back} onPress={() => router.back()}>
+        <Pressable style={styles.back} onPress={safeBack}>
           <Text style={styles.backText}>‹ Back</Text>
         </Pressable>
 

@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { useCurrentUser, useAgeGroup } from '@/hooks/useAuth';
+import { useRecordActivity } from '@/hooks/useApiQueries';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 const PLACEHOLDER_RANKS = [
@@ -18,8 +20,18 @@ const PLACEHOLDER_RANKS = [
 export default function LeaderboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack('/(tabs)');
   const user = useCurrentUser();
   const ageGroup = useAgeGroup();
+  const recordActivity = useRecordActivity();
+  const viewedRef = useRef(false);
+
+  useEffect(() => {
+    if (!viewedRef.current && user) {
+      viewedRef.current = true;
+      recordActivity.mutate('leaderboard_view');
+    }
+  }, [user, recordActivity]);
 
   if (!user) {
     router.replace('/');
@@ -41,7 +53,7 @@ export default function LeaderboardScreen() {
           <Text style={styles.lockedSub}>
             The leaderboard is available for Group B heroes only.
           </Text>
-          <Button label="Go back" variant="secondary" onPress={() => router.back()} style={styles.backBtn} />
+          <Button label="Go back" variant="secondary" onPress={safeBack} style={styles.backBtn} />
         </View>
       </ScrollView>
     );
