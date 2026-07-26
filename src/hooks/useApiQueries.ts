@@ -16,6 +16,15 @@ export const queryKeys = {
   progress: {
     me: ['progress', 'me'] as const,
   },
+  gamification: {
+    profile: ['gamification', 'profile'] as const,
+    badges: ['gamification', 'badges'] as const,
+    quests: ['gamification', 'quests'] as const,
+  },
+  shop: {
+    items: ['shop', 'items'] as const,
+    inventory: ['shop', 'inventory'] as const,
+  },
 };
 
 export function useAuthMe() {
@@ -176,5 +185,84 @@ export function useResetPassword() {
   return useMutation({
     mutationFn: ({ email, code, newPassword }: { email: string; code: string; newPassword: string }) =>
       api.auth.resetPassword({ email, code, newPassword }),
+  });
+}
+
+export function useGamificationProfile() {
+  return useQuery({
+    queryKey: queryKeys.gamification.profile,
+    queryFn: () => api.gamification.getProfile(),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useBadges() {
+  return useQuery({
+    queryKey: queryKeys.gamification.badges,
+    queryFn: () => api.gamification.getBadges(),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useDailyQuests() {
+  return useQuery({
+    queryKey: queryKeys.gamification.quests,
+    queryFn: () => api.gamification.getProfile(),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useShopItems() {
+  return useQuery({
+    queryKey: queryKeys.shop.items,
+    queryFn: () => api.shop.getItems(),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useInventory() {
+  return useQuery({
+    queryKey: queryKeys.shop.inventory,
+    queryFn: () => api.shop.getInventory(),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function usePurchaseItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => api.shop.purchase(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.shop.items });
+      queryClient.invalidateQueries({ queryKey: queryKeys.shop.inventory });
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+    },
+  });
+}
+
+export function useEquipItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => api.shop.equipItem(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.shop.inventory });
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+    },
+  });
+}
+
+export function useRecordActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: string) => api.gamification.recordActivity(action),
+    onSuccess: (data) => {
+      const result = data.data as { rewarded: boolean; xpEarned: number; gemsEarned: number; stats: { xp: number; level: number; leveledUp: boolean } };
+      if (!result.rewarded) return;
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.profile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.badges });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.quests });
+    },
   });
 }
