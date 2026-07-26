@@ -69,7 +69,7 @@ export interface LessonPlayerState {
   result: { xpEarned: number; newLevel: number } | null;
   steps: LessonStep[];
   total: number;
-  step: LessonStep;
+  step: LessonStep | undefined;
   isLast: boolean;
   progress: number;
 }
@@ -190,9 +190,9 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
 
   const steps = lecture?.lessons.map(mapApiLessonToStep) ?? [];
   const total = steps.length;
-  const step: LessonStep = steps[stepIndex];
+  const step: LessonStep | undefined = steps[stepIndex];
   const isLast = stepIndex === total - 1;
-  const progress = (stepIndex + (answered ? 1 : 0)) / total;
+  const progress = total > 0 ? (stepIndex + (answered ? 1 : 0)) / total : 0;
 
   return {
     lecture,
@@ -208,7 +208,7 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
     result,
     steps,
     total,
-    step,
+    step: step as LessonStep,
     isLast,
     progress,
     enter,

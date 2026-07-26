@@ -130,6 +130,40 @@ export const api = {
         body: JSON.stringify(body),
       }),
     getMyProgress: () =>
-      request<{ success: boolean; data: { user: unknown; modules: unknown[]; lessons: unknown[] } }>('/api/progress/me'),
+      request<{ success: boolean; data: { user: unknown; modules: unknown[]; lessons: unknown[]; badges: unknown[] } }>('/api/progress/me'),
+  },
+  gamification: {
+    getProfile: () =>
+      request<{ success: boolean; data: { user: unknown; badges: unknown[]; dailyQuests: unknown[]; inventory: unknown[]; stats: unknown } }>('/api/gamification/profile'),
+    getBadges: () =>
+      request<{ success: boolean; data: { badges: unknown[] } }>('/api/gamification/badges'),
+    claimQuestReward: (questId: string) =>
+      request<{ success: boolean; data: { xpEarned: number; gemsEarned: number } }>(`/api/gamification/quests/${questId}/claim`, {
+        method: 'POST',
+      }),
+    recordActivity: (action: string) =>
+      request<{ success: boolean; data: { rewarded: boolean; xpEarned: number; gemsEarned: number; stats: unknown } }>('/api/gamification/activity', {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      }),
+  },
+  shop: {
+    getItems: () =>
+      request<{ success: boolean; data: { items: unknown[] } }>('/api/shop/items'),
+    purchase: (itemId: string) =>
+      request<{ success: boolean; data: { success: boolean; item: unknown; remainingCurrency: number } }>('/api/shop/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ itemId }),
+      }),
+    getInventory: () =>
+      request<{ success: boolean; data: { inventory: unknown[] } }>('/api/shop/inventory'),
+    equipItem: (itemId: string) =>
+      request<{ success: boolean; data: { success: boolean; equipped: string } }>(`/api/shop/equip/${itemId}`, {
+        method: 'POST',
+      }),
+    unequipItem: (itemId: string) =>
+      request<{ success: boolean; data: { success: boolean; unequipped: string } }>(`/api/shop/unequip/${itemId}`, {
+        method: 'POST',
+      }),
   },
 };

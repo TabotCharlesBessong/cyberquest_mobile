@@ -1,17 +1,27 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/Button';
 import { Brand, Spacing } from '@/constants/theme';
 import { useCurrentUser, useGems } from '@/hooks/useAuth';
+import { useBadges, useShopItems, usePurchaseItem } from '@/hooks/useApiQueries';
+import { BadgeCard } from '@/components/BadgeCard';
+import { ShopItemCard } from '@/components/ShopItemCard';
+import { StatsCard } from '@/components/StatsCard';
 
 export default function RewardsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const gems = useGems();
+  const badgesQuery = useBadges();
+  const shopQuery = useShopItems();
+  const purchaseMutation = usePurchaseItem();
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  const badges = (badgesQuery.data?.data as { badges: unknown[] } | undefined)?.badges ?? [];
+  const items = (shopQuery.data?.data as { items: unknown[] } | undefined)?.items ?? [];
 
   if (!user) {
     return (
@@ -21,6 +31,18 @@ export default function RewardsScreen() {
     );
   }
 
+  async function handlePurchase(item: { id: string; name: string; cost: number }) {
+    setPurchasingId(item.id);
+    try {
+      await purchaseMutation.mutateAsync(item.id);
+      alert(`${item.name} purchased!`);
+    } catch (e) {
+      alert((e as Error)?.message || 'Purchase failed');
+    } finally {
+      setPurchasingId(null);
+    }
+  }
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -28,6 +50,9 @@ export default function RewardsScreen() {
         styles.container,
         { paddingTop: insets.top + Spacing.three },
       ]}
+      refreshControl={
+        <RefreshControl refreshing={shopQuery.isFetching || badgesQuery.isFetching} onRefresh={() => { shopQuery.refetch(); badgesQuery.refetch(); }} tintColor={Brand.primary} />
+      }
     >
       <View style={styles.header}>
         <Text style={styles.title}>Rewards Shop</Text>
@@ -37,56 +62,54 @@ export default function RewardsScreen() {
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Badges</Text>
-      <View style={styles.badgeRow}>
-        <BadgeCard emoji="🗺️" name="Explorer" />
-        <BadgeCard emoji="💪" name="Defender" />
-        <BadgeCard emoji="🐟" name="Scam Catcher" />
-        <BadgeCard emoji="🏰" name="Keeper" />
-        <BadgeCard emoji="🌟" name="Guardian" />
+      <View style={styles.statsRow}>
+        <StatsCard emoji="⭐" value={`${user.xp}`} label="XP" />
+        <StatsCard emoji="🔥" value={`${user.streak}`} label="Streak" />
+        <StatsCard emoji="❤️" value={`${user.hearts}`} label="Hearts" />
       </View>
+
+      <Text style={styles.sectionTitle}>Badges</Text>
+      {badgesQuery.isLoading ? (
+        <Text style={styles.loadingText}>Loading badges...</Text>
+      ) : (
+        <View style={styles.badgeRow}>
+          {(badges as any[]).map((b) => (
+            <BadgeCard
+              key={b.id}
+              emoji={b.icon}
+              name={b.name}
+              description={b.description}
+              rarity={b.rarity}
+              earned={b.earned}
+            />
+          ))}
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Shop</Text>
-      <View style={styles.shopList}>
-        <ShopItem emoji="🦹" name="Hero Cape" cost={50} />
-        <ShopItem emoji="🎩" name="Wizard Hat" cost={75} />
-        <ShopItem emoji="🦄" name="Glowing Wings" cost={100} />
-        <ShopItem emoji="🎸" name="Rockstar Guitar" cost={120} />
-      </View>
-    </ScrollView>
-  );
-}
-
-function BadgeCard({ emoji, name }: { emoji: string; name: string }) {
-  return (
-    <View style={styles.badgeCard}>
-      <Text style={styles.badgeEmoji}>{emoji}</Text>
-      <Text style={styles.badgeName}>{name}</Text>
-    </View>
-  );
-}
-
-function ShopItem({ emoji, name, cost }: { emoji: string; name: string; cost: number }) {
-  const [owned, setOwned] = useState(false);
-  if (owned) {
-    return (
-      <View style={styles.shopItem}>
-        <Text style={styles.shopEmoji}>{emoji}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.shopName}>{name}</Text>
-          <Text style={styles.shopOwned}>Owned</Text>
+      {shopQuery.isLoading ? (
+        <Text style={styles.loadingText}>Loading shop...</Text>
+      ) : (
+        <View style={styles.shopList}>
+          {(items as any[]).map((item) => (
+            <ShopItemCard
+              key={item.id}
+              emoji={item.icon}
+              name={item.name}
+              description={item.description}
+              cost={item.cost}
+              costType={item.costType}
+              rarity={item.rarity}
+              onPress={() => handlePurchase(item)}
+            />
+          ))}
         </View>
-      </View>
-    );
-  }
-  return (
-    <Pressable style={styles.shopItem} onPress={() => setOwned(true)}>
-      <Text style={styles.shopEmoji}>{emoji}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.shopName}>{name}</Text>
-        <Text style={styles.shopCost}>💎 {cost}</Text>
-      </View>
-    </Pressable>
+      )}
+
+      <Pressable style={styles.shopTabBtn} onPress={() => router.push('/(tabs)/shop')}>
+        <Text style={styles.shopTabText}>Browse Full Shop</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
@@ -115,6 +138,11 @@ const styles = StyleSheet.create({
   },
   gemEmoji: { fontSize: 24 },
   gemValue: { fontSize: 18, fontWeight: '900', color: '#1c2742' },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.four,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '900',
@@ -123,31 +151,22 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  badgeCard: {
-    width: '30%',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: Spacing.three,
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 2,
-    borderColor: '#e2e8f4',
-  },
-  badgeEmoji: { fontSize: 36 },
-  badgeName: { fontSize: 12, fontWeight: '800', color: '#3a4560', textAlign: 'center' },
   shopList: { gap: Spacing.two },
-  shopItem: {
-    flexDirection: 'row',
+  shopTabBtn: {
+    marginTop: Spacing.four,
+    backgroundColor: Brand.primary,
+    borderRadius: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: Spacing.three,
-    borderWidth: 2,
-    borderColor: '#e2e8f4',
+    shadowColor: Brand.shadow,
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 2,
   },
-  shopEmoji: { fontSize: 36 },
-  shopName: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
-  shopCost: { fontSize: 14, fontWeight: '700', color: '#5b6478' },
-  shopOwned: { fontSize: 14, fontWeight: '700', color: Brand.success },
+  shopTabText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
 });
