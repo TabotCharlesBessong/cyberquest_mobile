@@ -147,6 +147,44 @@ export const api = {
         body: JSON.stringify({ action }),
       }),
   },
+  leaderboard: {
+    get: (scope: string) =>
+      request<{ success: boolean; data: { entries: unknown[] } }>(`/api/leaderboard?scope=${encodeURIComponent(scope)}`),
+  },
+  leagues: {
+    getMyLeague: () =>
+      request<{ success: boolean; data: { league: unknown; standings: unknown[] } }>('/api/leagues/me'),
+  },
+  classroom: {
+    create: (name: string, school: string) =>
+      request<{ success: boolean; data: unknown }>('/api/classroom/', {
+        method: 'POST',
+        body: JSON.stringify({ name, school }),
+      }),
+    join: (code: string) =>
+      request<{ success: boolean; data: unknown }>('/api/classroom/join', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    startRound: (classroomId: string, questions: unknown[]) =>
+      request<{ success: boolean; data: unknown }>(`/api/classroom/${classroomId}/round/start`, {
+        method: 'POST',
+        body: JSON.stringify({ questions }),
+      }),
+    submitAnswer: (roundId: string, questionId: string, selectedIndex: number, correctIndex: number) =>
+      request<{ success: boolean; data: unknown }>(`/api/classroom/rounds/${roundId}/answer`, {
+        method: 'POST',
+        body: JSON.stringify({ questionId, selectedIndex, correctIndex }),
+      }),
+    finishRound: (roundId: string) =>
+      request<{ success: boolean; data: unknown }>(`/api/classroom/rounds/${roundId}/finish`, {
+        method: 'POST',
+      }),
+  },
+  events: {
+    getActive: () =>
+      request<{ success: boolean; data: unknown }>('/api/events/active'),
+  },
   shop: {
     getItems: () =>
       request<{ success: boolean; data: { items: unknown[] } }>('/api/shop/items'),

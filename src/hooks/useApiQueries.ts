@@ -266,3 +266,27 @@ export function useRecordActivity() {
     },
   });
 }
+
+export function useLeaderboard(scope: string = 'global') {
+  return useQuery({
+    queryKey: ['leaderboard', scope],
+    queryFn: () => api.leaderboard.get(scope),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useMyLeague() {
+  return useQuery({
+    queryKey: ['leagues', 'me'],
+    queryFn: () => api.leagues.getMyLeague(),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useActiveEvent() {
+  return useQuery({
+    queryKey: ['events', 'active'],
+    queryFn: () => api.events.getActive(),
+    staleTime: 1000 * 60 * 5,
+  });
+}
