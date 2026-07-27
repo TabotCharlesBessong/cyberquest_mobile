@@ -9,6 +9,7 @@
     "@react-native-community/netinfo": "12.0.1",
     "@tanstack/react-query": "^5.101.3",
     "expo": "~57.0.7",
+    "expo-av": "^16.0.8",
     "expo-confetti": "^0.1.207",
     "expo-constants": "~57.0.3",
     "expo-device": "~57.0.1",
