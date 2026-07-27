@@ -15,7 +15,7 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { QuestBanner } from '@/components/QuestBanner';
 import { StatsCard } from '@/components/StatsCard';
 import { useHomeData } from '@/hooks/useHomeData';
-import { useRecordActivity } from '@/hooks/useApiQueries';
+import { useRecordActivity, useActiveEvent } from '@/hooks/useApiQueries';
 import { Brand, Spacing } from '@/constants/theme';
 import { api } from '@/lib/api';
 
@@ -24,6 +24,8 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const recordActivity = useRecordActivity();
   const dailyLoginRef = useRef(false);
+  const eventQuery = useActiveEvent();
+  const activeEvent = eventQuery.data?.data as { id: string; name: string; description: string; multiplier: number; startsAt: string; endsAt: string } | null | undefined;
   const {
     user,
     lectures,
@@ -147,6 +149,17 @@ export default function HomeScreen() {
             }
           }}
         />
+      )}
+
+      {activeEvent && (
+        <Pressable style={styles.eventBanner} onPress={() => {}}>
+          <Text style={styles.eventEmoji}>🎉</Text>
+          <View style={styles.eventText}>
+            <Text style={styles.eventTitle}>{activeEvent.name}</Text>
+            <Text style={styles.eventSub}>{activeEvent.description}</Text>
+            <Text style={styles.eventMultiplier}>{activeEvent.multiplier}x XP</Text>
+          </View>
+        </Pressable>
       )}
 
       <Text style={styles.sectionTitle}>Your Mission Map</Text>
@@ -351,4 +364,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  eventBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: Brand.warning,
+    marginBottom: Spacing.four,
+  },
+  eventEmoji: { fontSize: 28 },
+  eventText: { flex: 1 },
+  eventTitle: { fontSize: 15, fontWeight: '900', color: '#1c2742' },
+  eventSub: { fontSize: 13, fontWeight: '700', color: '#5b6478' },
+  eventMultiplier: { fontSize: 12, fontWeight: '800', color: Brand.warning },
 });
