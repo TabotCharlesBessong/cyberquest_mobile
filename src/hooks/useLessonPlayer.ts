@@ -1,8 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
-import { Animated, Easing } from 'react-native';
-import { useAuthStore } from '@/stores/authStore';
-import { useLectureBySlug, useSubmitLessonProgress } from './useApiQueries';
-import type { LessonStep } from '@/data/types';
+import { useState, useRef, useEffect } from "react";
+import { Animated, Easing } from "react-native";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  useLectureBySlug,
+  useCurriculumLesson,
+  useSubmitLessonProgress,
+} from "./useApiQueries";
+import type { LessonStep } from "@/data/types";
 
 type ApiLecture = {
   id: string;
@@ -19,7 +23,7 @@ type ApiLecture = {
 type ApiLesson = {
   id: string;
   stepId: string;
-  type: 'story' | 'quiz' | 'mini-game' | 'challenge';
+  type: "story" | "quiz" | "mini-game" | "challenge";
   title: string;
   text: string;
   question: string;
@@ -32,11 +36,31 @@ type ApiLesson = {
   order: number;
 };
 
+type CurriculumLesson = {
+  id: string;
+  stepId: string;
+  type: "story" | "quiz" | "mini-game" | "challenge";
+  title: string;
+  notes: string;
+  order: number;
+  ageGroup: string;
+  difficulty: number;
+  questions: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation: string;
+    difficulty: number;
+    xpReward: number;
+  }>;
+};
+
 function mapApiLessonToStep(lesson: ApiLesson): LessonStep {
-  if (lesson.type === 'quiz') {
+  if (lesson.type === "quiz") {
     return {
       id: lesson.stepId,
-      type: 'quiz',
+      type: "quiz",
       question: lesson.question,
       options: lesson.options,
       answer: lesson.answer,
@@ -46,13 +70,40 @@ function mapApiLessonToStep(lesson: ApiLesson): LessonStep {
   }
   return {
     id: lesson.stepId,
-    type: 'story',
+    type: "story",
     title: lesson.title,
     text: lesson.text,
     icon: lesson.icon,
     mascot: lesson.mascot,
     speech: lesson.speech,
   };
+}
+
+function mapCurriculumLessonToSteps(lesson: CurriculumLesson): LessonStep[] {
+  const steps: LessonStep[] = [];
+  if (lesson.notes) {
+    steps.push({
+      id: `${lesson.stepId}-notes`,
+      type: "story",
+      title: lesson.title,
+      text: lesson.notes,
+      icon: "📝",
+      mascot: "🦸",
+      speech: "Read this carefully before answering the questions!",
+    });
+  }
+  for (const q of lesson.questions) {
+    steps.push({
+      id: q.id,
+      type: "quiz",
+      question: q.question,
+      options: q.options,
+      answer: q.correctIndex,
+      explanation: q.explanation,
+      icon: "❓",
+    });
+  }
+  return steps;
 }
 
 export interface LessonPlayerState {
@@ -80,14 +131,22 @@ export interface LessonPlayerActions {
   resetStepState: () => void;
 }
 
-export interface LessonPlayerReturn extends LessonPlayerState, LessonPlayerActions {
+export interface LessonPlayerReturn
+  extends LessonPlayerState, LessonPlayerActions {
   enter: Animated.Value;
   shake: Animated.Value;
 }
 
-export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerReturn {
+export function useLessonPlayer(
+  lectureSlug: string | undefined,
+  lessonId?: string,
+): LessonPlayerReturn {
   const user = useAuthStore((s) => s.user);
-  const lectureQuery = useLectureBySlug(lectureSlug ?? '', user?.ageGroup ?? 'A');
+  const lectureQuery = useLectureBySlug(
+    lectureSlug ?? "",
+    user?.ageGroup ?? "A",
+  );
+  const lessonQuery = useCurriculumLesson(lessonId ?? "");
   const submitProgress = useSubmitLessonProgress();
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -97,19 +156,34 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
   const [finished, setFinished] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ xpEarned: number; newLevel: number } | null>(null);
+  const [result, setResult] = useState<{
+    xpEarned: number;
+    newLevel: number;
+  } | null>(null);
 
   const enter = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
 
   const lecture = lectureQuery.data?.data.lecture as ApiLecture | undefined;
-  const loading = lectureQuery.isLoading;
-  const error = lectureQuery.error?.message || '';
+  const curriculumLesson = lessonQuery.data?.data.lesson as
+    | CurriculumLesson
+    | undefined;
+  const loading = lectureQuery.isLoading || lessonQuery.isLoading;
+  const error = lectureQuery.error?.message || lessonQuery.error?.message || "";
+
+  const isCurriculumMode = !!lessonId && !!curriculumLesson;
+  const steps: LessonStep[] = isCurriculumMode
+    ? mapCurriculumLessonToSteps(curriculumLesson)
+    : (lecture?.lessons.map(mapApiLessonToStep) ?? []);
+  const total = steps.length;
+  const step: LessonStep | undefined = steps[stepIndex];
+  const isLast = stepIndex === total - 1;
+  const progress = total > 0 ? (stepIndex + (answered ? 1 : 0)) / total : 0;
 
   useEffect(() => {
-    if (!lectureSlug) return;
+    if (!lectureSlug && !lessonId) return;
     resetStepState();
-  }, [lectureSlug]);
+  }, [lectureSlug, lessonId]);
 
   useEffect(() => {
     if (finished) return;
@@ -136,23 +210,36 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
     if (answered) return;
     setSelected(index);
     setAnswered(true);
-    const steps = lecture?.lessons.map(mapApiLessonToStep) ?? [];
-    const step: LessonStep = steps[stepIndex];
-    const correct = step.type === 'quiz' && index === step.answer;
+    const currentStep = steps[stepIndex];
+    const correct = currentStep.type === "quiz" && index === currentStep.answer;
     if (correct) setCorrectCount((c) => c + 1);
-    if (!correct && step.type === 'quiz') {
+    if (!correct && currentStep.type === "quiz") {
       Animated.sequence([
-        Animated.timing(shake, { toValue: 1, duration: 60, useNativeDriver: true }),
-        Animated.timing(shake, { toValue: -1, duration: 60, useNativeDriver: true }),
-        Animated.timing(shake, { toValue: 1, duration: 60, useNativeDriver: true }),
-        Animated.timing(shake, { toValue: 0, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, {
+          toValue: 1,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shake, {
+          toValue: -1,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shake, {
+          toValue: 1,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shake, {
+          toValue: 0,
+          duration: 60,
+          useNativeDriver: true,
+        }),
       ]).start();
     }
   }
 
   function next() {
-    const steps = lecture?.lessons.map(mapApiLessonToStep) ?? [];
-    const total = steps.length;
     if (stepIndex === total - 1) {
       finishLesson();
       return;
@@ -163,16 +250,18 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
   }
 
   async function finishLesson() {
-    if (!lecture || !user) return;
+    if (!user) return;
     setSubmitting(true);
     try {
-      const steps = lecture.lessons.map(mapApiLessonToStep);
-      const total = steps.length;
-      const quizTotal = steps.filter((s) => s.type === 'quiz').length;
-      const score = quizTotal > 0 ? Math.round((correctCount / quizTotal) * 100) : 100;
-      const currentLessonId = lecture.lessons[stepIndex]?.id ?? steps[stepIndex].id;
-      const res = await submitProgress.mutateAsync({ 
-        lessonId: currentLessonId, 
+      const quizSteps = steps.filter((s) => s.type === "quiz");
+      const quizTotal = quizSteps.length;
+      const score =
+        quizTotal > 0 ? Math.round((correctCount / quizTotal) * 100) : 100;
+      const currentLessonId = isCurriculumMode
+        ? (curriculumLesson?.id ?? lessonId)
+        : (lecture?.lessons[stepIndex]?.id ?? steps[stepIndex]?.id);
+      const res = await submitProgress.mutateAsync({
+        lessonId: currentLessonId ?? "",
         score,
         correctCount,
         total: quizTotal,
@@ -187,12 +276,6 @@ export function useLessonPlayer(lectureSlug: string | undefined): LessonPlayerRe
       setCelebrate(true);
     }
   }
-
-  const steps = lecture?.lessons.map(mapApiLessonToStep) ?? [];
-  const total = steps.length;
-  const step: LessonStep | undefined = steps[stepIndex];
-  const isLast = stepIndex === total - 1;
-  const progress = total > 0 ? (stepIndex + (answered ? 1 : 0)) / total : 0;
 
   return {
     lecture,
