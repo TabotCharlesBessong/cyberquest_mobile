@@ -1,29 +1,40 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { api, setToken } from '@/lib/api';
-import { useAuthStore } from '@/stores/authStore';
-import { trace } from '@/utils/debug';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { api, setToken } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
+import { trace } from "@/utils/debug";
 
 export const queryKeys = {
   auth: {
-    me: ['auth', 'me'] as const,
+    me: ["auth", "me"] as const,
   },
   lectures: {
-    all: ['lectures'] as const,
-    list: (ageGroup?: string) => ['lectures', 'list', ageGroup] as const,
-    detail: (slug: string, ageGroup?: string) => ['lectures', 'detail', slug, ageGroup] as const,
+    all: ["lectures"] as const,
+    list: (ageGroup?: string) => ["lectures", "list", ageGroup] as const,
+    detail: (slug: string, ageGroup?: string) =>
+      ["lectures", "detail", slug, ageGroup] as const,
+  },
+  curriculum: {
+    sections: (ageGroup?: string) =>
+      ["curriculum", "sections", ageGroup] as const,
+    section: (slug: string, ageGroup?: string) =>
+      ["curriculum", "section", slug, ageGroup] as const,
+    units: (sectionId: string) => ["curriculum", "units", sectionId] as const,
+    unit: (id: string) => ["curriculum", "unit", id] as const,
+    lessons: (unitId: string) => ["curriculum", "lessons", unitId] as const,
+    lesson: (id: string) => ["curriculum", "lesson", id] as const,
   },
   progress: {
-    me: ['progress', 'me'] as const,
+    me: ["progress", "me"] as const,
   },
   gamification: {
-    profile: ['gamification', 'profile'] as const,
-    badges: ['gamification', 'badges'] as const,
-    quests: ['gamification', 'quests'] as const,
+    profile: ["gamification", "profile"] as const,
+    badges: ["gamification", "badges"] as const,
+    quests: ["gamification", "quests"] as const,
   },
   shop: {
-    items: ['shop', 'items'] as const,
-    inventory: ['shop', 'inventory'] as const,
+    items: ["shop", "items"] as const,
+    inventory: ["shop", "inventory"] as const,
   },
 };
 
@@ -37,7 +48,7 @@ export function useAuthMe() {
 }
 
 export function useLectures(ageGroup?: string) {
-  const group = ageGroup ?? 'A';
+  const group = ageGroup ?? "A";
   return useQuery({
     queryKey: queryKeys.lectures.list(ageGroup),
     queryFn: () => api.lectures.getAll(group),
@@ -46,12 +57,67 @@ export function useLectures(ageGroup?: string) {
 }
 
 export function useLectureBySlug(slug: string, ageGroup?: string) {
-  const group = ageGroup ?? 'A';
+  const group = ageGroup ?? "A";
   return useQuery({
     queryKey: queryKeys.lectures.detail(slug, ageGroup),
     queryFn: () => api.lectures.getBySlug(slug, group),
     staleTime: 1000 * 60 * 5,
     enabled: !!slug,
+  });
+}
+
+export function useCurriculumSections(ageGroup?: string) {
+  const group = ageGroup ?? "A";
+  return useQuery({
+    queryKey: queryKeys.curriculum.sections(ageGroup),
+    queryFn: () => api.curriculum.getSections(group),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useCurriculumSection(slug: string, ageGroup?: string) {
+  const group = ageGroup ?? "A";
+  return useQuery({
+    queryKey: queryKeys.curriculum.section(slug, ageGroup),
+    queryFn: () => api.curriculum.getSection(slug, group),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!slug,
+  });
+}
+
+export function useCurriculumUnits(sectionId: string) {
+  return useQuery({
+    queryKey: queryKeys.curriculum.units(sectionId),
+    queryFn: () => api.curriculum.getUnits(sectionId),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!sectionId,
+  });
+}
+
+export function useCurriculumUnit(id: string) {
+  return useQuery({
+    queryKey: queryKeys.curriculum.unit(id),
+    queryFn: () => api.curriculum.getUnit(id),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!id,
+  });
+}
+
+export function useCurriculumLessons(unitId: string) {
+  return useQuery({
+    queryKey: queryKeys.curriculum.lessons(unitId),
+    queryFn: () => api.curriculum.getLessons(unitId),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!unitId,
+  });
+}
+
+export function useCurriculumLesson(id: string) {
+  return useQuery({
+    queryKey: queryKeys.curriculum.lesson(id),
+    queryFn: () => api.curriculum.getLesson(id),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!id,
   });
 }
 
@@ -61,13 +127,17 @@ export function useMyProgress() {
     queryKey: queryKeys.progress.me,
     queryFn: async () => {
       const res = await api.progress.getMyProgress();
-      return res as { success: boolean; data: { user: unknown; modules: unknown[]; lessons: unknown[] } };
+      return res as {
+        success: boolean;
+        data: { user: unknown; modules: unknown[]; lessons: unknown[] };
+      };
     },
     staleTime: 0,
     gcTime: 0,
   });
 
-  const modules = (data.data?.data as { modules: unknown[] } | undefined)?.modules ?? [];
+  const modules =
+    (data.data?.data as { modules: unknown[] } | undefined)?.modules ?? [];
 
   useEffect(() => {
     if (modules.length > 0) {
@@ -81,14 +151,35 @@ export function useMyProgress() {
 export function useSubmitLessonProgress() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ lessonId, score, correctCount, total }: { lessonId: string; score: number; correctCount: number; total: number }) =>
-      api.progress.submitLesson({ lessonId, score, correctCount, total }),
+    mutationFn: ({
+      lessonId,
+      score,
+      correctCount,
+      total,
+    }: {
+      lessonId: string;
+      score: number;
+      correctCount: number;
+      total: number;
+    }) => api.progress.submitLesson({ lessonId, score, correctCount, total }),
     onSuccess: (data) => {
-      const result = data.data as { lessonProgress: unknown; moduleProgress: { lectureId: string; status: string; xpEarned: number; score: number; stars: number; completedAt: string | null }; xpEarned: number; newLevel: number };
+      const result = data.data as {
+        lessonProgress: unknown;
+        moduleProgress: {
+          lectureId: string;
+          status: string;
+          xpEarned: number;
+          score: number;
+          stars: number;
+          completedAt: string | null;
+        };
+        xpEarned: number;
+        newLevel: number;
+      };
       const updatedModule = result.moduleProgress;
 
       if (__DEV__) {
-        trace('useSubmitLessonProgress success', {
+        trace("useSubmitLessonProgress success", {
           lectureId: updatedModule.lectureId,
           status: updatedModule.status,
           xpEarned: result.xpEarned,
@@ -100,29 +191,38 @@ export function useSubmitLessonProgress() {
         const modules = state.modules.map((m) =>
           m.lectureId === updatedModule.lectureId
             ? { ...m, ...updatedModule }
-            : m
+            : m,
         );
         return {
-          user: state.user ? { ...state.user, xp: state.user.xp + result.xpEarned, level: result.newLevel } : state.user,
+          user: state.user
+            ? {
+                ...state.user,
+                xp: state.user.xp + result.xpEarned,
+                level: result.newLevel,
+              }
+            : state.user,
           modules,
         };
       });
 
-      queryClient.setQueriesData({ queryKey: queryKeys.progress.me }, (old: any) => {
-        if (!old?.data?.modules) return old;
-        const modules = old.data.modules.map((m: any) =>
-          m.lectureId === updatedModule.lectureId
-            ? { ...m, ...updatedModule }
-            : m
-        );
-        return {
-          ...old,
-          data: {
-            ...old.data,
-            modules,
-          },
-        };
-      });
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.progress.me },
+        (old: any) => {
+          if (!old?.data?.modules) return old;
+          const modules = old.data.modules.map((m: any) =>
+            m.lectureId === updatedModule.lectureId
+              ? { ...m, ...updatedModule }
+              : m,
+          );
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              modules,
+            },
+          };
+        },
+      );
 
       queryClient.invalidateQueries({ queryKey: queryKeys.progress.me });
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
@@ -146,8 +246,17 @@ export function useLogin() {
 export function useSignup() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, email, password, age }: { name: string; email: string; password: string; age: number }) =>
-      api.auth.signup({ name, email, password, age }),
+    mutationFn: ({
+      name,
+      email,
+      password,
+      age,
+    }: {
+      name: string;
+      email: string;
+      password: string;
+      age: number;
+    }) => api.auth.signup({ name, email, password, age }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
     },
@@ -157,8 +266,7 @@ export function useSignup() {
 export function useVerifyEmail() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ code }: { code: string }) =>
-      api.auth.verifyEmail({ code }),
+    mutationFn: ({ code }: { code: string }) => api.auth.verifyEmail({ code }),
     onSuccess: async (data) => {
       const token = (data.data as { token: string }).token;
       await setToken(token);
@@ -183,8 +291,15 @@ export function useForgotPassword() {
 
 export function useResetPassword() {
   return useMutation({
-    mutationFn: ({ email, code, newPassword }: { email: string; code: string; newPassword: string }) =>
-      api.auth.resetPassword({ email, code, newPassword }),
+    mutationFn: ({
+      email,
+      code,
+      newPassword,
+    }: {
+      email: string;
+      code: string;
+      newPassword: string;
+    }) => api.auth.resetPassword({ email, code, newPassword }),
   });
 }
 
@@ -256,20 +371,31 @@ export function useRecordActivity() {
   return useMutation({
     mutationFn: (action: string) => api.gamification.recordActivity(action),
     onSuccess: (data) => {
-      const result = data.data as { rewarded: boolean; xpEarned: number; gemsEarned: number; stats: { xp: number; level: number; leveledUp: boolean } };
+      const result = data.data as {
+        rewarded: boolean;
+        xpEarned: number;
+        gemsEarned: number;
+        stats: { xp: number; level: number; leveledUp: boolean };
+      };
       if (!result.rewarded) return;
 
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
-      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.profile });
-      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.badges });
-      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.quests });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gamification.profile,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gamification.badges,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gamification.quests,
+      });
     },
   });
 }
 
-export function useLeaderboard(scope: string = 'global') {
+export function useLeaderboard(scope: string = "global") {
   return useQuery({
-    queryKey: ['leaderboard', scope],
+    queryKey: ["leaderboard", scope],
     queryFn: () => api.leaderboard.get(scope),
     staleTime: 1000 * 60 * 2,
   });
@@ -277,7 +403,7 @@ export function useLeaderboard(scope: string = 'global') {
 
 export function useMyLeague() {
   return useQuery({
-    queryKey: ['leagues', 'me'],
+    queryKey: ["leagues", "me"],
     queryFn: () => api.leagues.getMyLeague(),
     staleTime: 1000 * 60 * 2,
   });
@@ -285,7 +411,7 @@ export function useMyLeague() {
 
 export function useActiveEvent() {
   return useQuery({
-    queryKey: ['events', 'active'],
+    queryKey: ["events", "active"],
     queryFn: () => api.events.getActive(),
     staleTime: 1000 * 60 * 5,
   });
