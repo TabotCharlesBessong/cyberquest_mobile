@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -18,6 +18,9 @@ import { useHomeData } from "@/hooks/useHomeData";
 import { useRecordActivity, useActiveEvent } from "@/hooks/useApiQueries";
 import { Brand, Spacing } from "@/constants/theme";
 import { api } from "@/lib/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const LAST_LESSON_KEY = "@cyberquest:lastLesson";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -36,6 +39,8 @@ export default function HomeScreen() {
       }
     | null
     | undefined;
+  const [lastLesson, setLastLesson] = useState<{ sectionSlug: string; lessonId: string; unitId: string } | null>(null);
+
   const {
     user,
     lectures,
@@ -60,6 +65,22 @@ export default function HomeScreen() {
       recordActivity.mutate("daily_login");
     }
   }, [user, recordActivity]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_LESSON_KEY)
+      .then((raw) => {
+        if (raw) {
+          try {
+            setLastLesson(JSON.parse(raw));
+          } catch {
+            setLastLesson(null);
+          }
+        }
+      })
+      .catch(() => {
+        setLastLesson(null);
+      });
+  }, []);
 
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -194,6 +215,29 @@ export default function HomeScreen() {
               {activeEvent.multiplier}x XP
             </Text>
           </View>
+        </Pressable>
+      )}
+
+      {lastLesson && (
+        <Pressable
+          style={styles.resumeBanner}
+          onPress={() => {
+            router.push({
+              pathname: "/lesson",
+              params: {
+                lecture: lastLesson.sectionSlug,
+                lessonId: lastLesson.lessonId,
+                unitId: lastLesson.unitId,
+              },
+            });
+          }}
+        >
+          <Text style={styles.resumeEmoji}>▶️</Text>
+          <View style={styles.resumeText}>
+            <Text style={styles.resumeTitle}>Continue Learning</Text>
+            <Text style={styles.resumeSub}>Pick up where you left off</Text>
+          </View>
+          <Text style={styles.resumeArrow}>›</Text>
         </Pressable>
       )}
 
@@ -444,4 +488,20 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 15, fontWeight: "900", color: "#1c2742" },
   eventSub: { fontSize: 13, fontWeight: "700", color: "#5b6478" },
   eventMultiplier: { fontSize: 12, fontWeight: "800", color: Brand.warning },
+  resumeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: Brand.primary,
+    marginBottom: Spacing.four,
+  },
+  resumeEmoji: { fontSize: 24 },
+  resumeText: { flex: 1 },
+  resumeTitle: { fontSize: 15, fontWeight: "900", color: "#1c2742" },
+  resumeSub: { fontSize: 13, fontWeight: "700", color: "#5b6478" },
+  resumeArrow: { fontSize: 24, fontWeight: "900", color: Brand.primary },
 });

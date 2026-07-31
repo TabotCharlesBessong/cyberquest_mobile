@@ -6,6 +6,7 @@ import {
   useCurriculumLesson,
   useSubmitLessonProgress,
 } from "./useApiQueries";
+import { playSuccess, playFail } from "@/utils/sounds";
 import type { LessonStep } from "@/data/types";
 
 type ApiLecture = {
@@ -212,8 +213,11 @@ export function useLessonPlayer(
     setAnswered(true);
     const currentStep = steps[stepIndex];
     const correct = currentStep.type === "quiz" && index === currentStep.answer;
-    if (correct) setCorrectCount((c) => c + 1);
-    if (!correct && currentStep.type === "quiz") {
+    if (correct) {
+      setCorrectCount((c) => c + 1);
+      playSuccess();
+    } else if (currentStep.type === "quiz") {
+      playFail();
       Animated.sequence([
         Animated.timing(shake, {
           toValue: 1,
