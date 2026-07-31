@@ -150,6 +150,9 @@ export default function ProfileScreen() {
         <Pressable style={styles.navBtn} onPress={() => router.push('/leaderboard')}>
           <Text style={styles.navBtnText}>🏆 Leaderboard</Text>
         </Pressable>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/league')}>
+          <Text style={styles.navBtnText}>🏅 League</Text>
+        </Pressable>
         <Pressable style={styles.navBtn} onPress={() => router.push('/parent')}>
           <Text style={styles.navBtnText}>👨‍👩‍👧 Parent</Text>
         </Pressable>

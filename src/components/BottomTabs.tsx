@@ -15,6 +15,7 @@ export function BottomTabs() {
       <Tab active={isHome} emoji="🗺️" label="Learn" onPress={() => router.push('/')} />
       <Tab active={pathname.includes('shop')} emoji="🛒" label="Shop" onPress={() => router.push('/(tabs)/shop')} />
       <Tab active={pathname.includes('inventory')} emoji="🎒" label="Gear" onPress={() => router.push('/(tabs)/inventory')} />
+      <Tab active={pathname.includes('classroom')} emoji="🎯" label="Class" onPress={() => router.push('/classroom')} />
       <Tab active={!isHome && pathname.includes('rewards')} emoji="💎" label="Rewards" onPress={() => router.push('/(tabs)/rewards')} />
       <Tab active={!isHome && pathname.includes('profile')} emoji="⭐" label="Profile" onPress={() => router.push('/(tabs)/profile')} />
     </View>
