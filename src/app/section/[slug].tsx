@@ -51,7 +51,7 @@ const STORAGE_KEYS = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CIRCLE_SIZE = 56;
+const CIRCLE_SIZE = 129;
 const HORIZONTAL_PADDING = Spacing.four * 2;
 const CENTER_GAP = 16;
 
@@ -172,6 +172,11 @@ export default function SectionDetailScreen() {
     []
   );
 
+  const allUnitsCompleted = units.length > 0 && units.every((unit: any) => {
+    const lessons = unit.lessons ?? [];
+    return lessons.length > 0 && lessons.every((l: any) => lessonProgressMap[l.id]);
+  });
+
   if (sectionQuery.isLoading) {
     return (
       <View
@@ -222,11 +227,17 @@ export default function SectionDetailScreen() {
         const positions = snakeLayout(
           lessons.length,
           SCREEN_WIDTH,
-          140
+          160
         );
 
         const maxRow = lessons.length > 0 ? Math.ceil(lessons.length / 2) : 0;
-        const pathHeight = maxRow * 140;
+        const pathHeight = maxRow * 160;
+
+        const prevUnitCompleted = unitIndex === 0 || units.slice(0, unitIndex).every((prevUnit: any) => {
+          const prevLessons = prevUnit.lessons ?? [];
+          return prevLessons.length > 0 && prevLessons.every((l: any) => lessonProgressMap[l.id]);
+        });
+        const isUnitLocked = unitIndex > 0 && !prevUnitCompleted;
 
         return (
           <View
@@ -240,9 +251,12 @@ export default function SectionDetailScreen() {
             <View style={styles.unitHeader}>
               <Text style={styles.unitIcon}>{unit.icon}</Text>
               <View style={styles.unitText}>
-                <Text style={styles.unitTitle}>{unit.title}</Text>
+                <Text style={[styles.unitTitle, isUnitLocked && styles.unitTitleLocked]}>{unit.title}</Text>
                 <Text style={styles.unitDesc}>{unit.description}</Text>
               </View>
+              {isUnitLocked && (
+                <Text style={styles.unitLockText}>🔒</Text>
+              )}
             </View>
 
             <View style={[styles.snakeContainer, { height: pathHeight }]}>
@@ -256,6 +270,9 @@ export default function SectionDetailScreen() {
                   LESSON_ICONS[lessonIndex % LESSON_ICONS.length];
                 const isCompleted = lessonProgressMap[lesson.id];
                 const isLastVisited = lastLessonId === lesson.id;
+
+                const prevLessonCompleted = lessonIndex === 0 || lessons.slice(0, lessonIndex).every((prevLesson: any) => lessonProgressMap[prevLesson.id]);
+                const isLessonLocked = isUnitLocked || !prevLessonCompleted;
 
                 return (
                   <View
@@ -281,7 +298,7 @@ export default function SectionDetailScreen() {
                       style={({ pressed }) => [
                         styles.lessonCircle,
                         {
-                          backgroundColor: lessonColor,
+                          backgroundColor: isLessonLocked ? "#cbd5e1" : lessonColor,
                           borderColor: isCompleted
                             ? Brand.success
                             : isLastVisited
@@ -289,9 +306,10 @@ export default function SectionDetailScreen() {
                             : "transparent",
                           borderWidth: isCompleted || isLastVisited ? 3 : 0,
                         },
-                        pressed && { transform: [{ scale: 0.95 }] },
+                        pressed && !isLessonLocked && { transform: [{ scale: 0.95 }] },
                       ]}
                       onPress={() => {
+                        if (isLessonLocked) return;
                         persistLastLesson(lesson.id);
                         router.push({
                           pathname: "/lesson",
@@ -303,7 +321,9 @@ export default function SectionDetailScreen() {
                         });
                       }}
                     >
-                      <Text style={styles.lessonCircleIcon}>{lessonIcon}</Text>
+                      <Text style={[styles.lessonCircleIcon, isLessonLocked && styles.lessonCircleIconLocked]}>
+                        {isLessonLocked ? "🔒" : lessonIcon}
+                      </Text>
                       {isCompleted && (
                         <View style={styles.completedBadge}>
                           <Text style={styles.completedBadgeText}>✓</Text>
@@ -312,7 +332,7 @@ export default function SectionDetailScreen() {
                     </Pressable>
 
                     <Text
-                      style={styles.lessonCircleLabel}
+                      style={[styles.lessonCircleLabel, isLessonLocked && styles.lessonCircleLabelLocked]}
                       numberOfLines={2}
                       ellipsizeMode="tail"
                     >
@@ -325,6 +345,15 @@ export default function SectionDetailScreen() {
           </View>
         );
       })}
+
+      {allUnitsCompleted && (
+        <Pressable
+          style={styles.nextSectionBtn}
+          onPress={() => router.replace("/(tabs)")}
+        >
+          <Text style={styles.nextSectionBtnText}>All units complete! Choose your next section</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -448,7 +477,9 @@ const styles = StyleSheet.create({
   unitIcon: { fontSize: 32 },
   unitText: { flex: 1 },
   unitTitle: { fontSize: 17, fontWeight: "900", color: "#1c2742" },
+  unitTitleLocked: { color: "#9aa3b5" },
   unitDesc: { fontSize: 13, fontWeight: "600", color: "#5b6478", marginTop: 2 },
+  unitLockText: { fontSize: 20 },
   snakeContainer: {
     width: "100%",
     position: "relative",
@@ -464,7 +495,7 @@ const styles = StyleSheet.create({
   connectorLine: {
     position: "absolute",
     width: SCREEN_WIDTH,
-    height: 140,
+    height: 160,
     pointerEvents: "none",
   },
   lineVertical: {
@@ -491,19 +522,20 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  lessonCircleIcon: { fontSize: 24, color: "#fff" },
+  lessonCircleIcon: { fontSize: 48, color: "#fff" },
+  lessonCircleIconLocked: { fontSize: 32 },
   completedBadge: {
     position: "absolute",
     bottom: 2,
     right: 2,
     backgroundColor: Brand.success,
-    borderRadius: 8,
-    width: 18,
-    height: 18,
+    borderRadius: CIRCLE_SIZE / 4,
+    width: CIRCLE_SIZE / 3,
+    height: CIRCLE_SIZE / 3,
     alignItems: "center",
     justifyContent: "center",
   },
-  completedBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  completedBadgeText: { color: "#fff", fontSize: CIRCLE_SIZE / 5, fontWeight: "900" },
   lessonCircleLabel: {
     fontSize: 11,
     fontWeight: "800",
@@ -511,5 +543,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     minHeight: 28,
     maxWidth: CIRCLE_SIZE * 1.8,
+  },
+  lessonCircleLabelLocked: { color: "#9aa3b5" },
+  nextSectionBtn: {
+    backgroundColor: Brand.primary,
+    borderRadius: 16,
+    paddingVertical: Spacing.four,
+    alignItems: "center",
+    marginTop: Spacing.four,
+  },
+  nextSectionBtnText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 16,
   },
 });
