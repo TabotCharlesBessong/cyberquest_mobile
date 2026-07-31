@@ -17,12 +17,14 @@ import { FormCodeInput, FormError, FormInput, FormPasswordInput } from '@/compon
 import { useZodForm } from '@/hooks/useZodForm';
 import { resetPasswordSchema, type ResetPasswordInput } from '@/lib/schemas';
 import { api } from '@/lib/api';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack('/');
   const email = typeof params.email === 'string' ? params.email : '';
 
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function ResetPasswordScreen() {
         ]}
         keyboardShouldPersistTaps="always"
       >
-        <Pressable style={styles.back} onPress={() => router.back()}>
+        <Pressable style={styles.back} onPress={safeBack}>
           <Text style={styles.backText}>‹ Back</Text>
         </Pressable>
 

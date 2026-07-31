@@ -16,6 +16,19 @@ type ProgressData = {
     hearts: number;
     gems: number;
   };
+  badges: {
+    id: string;
+    key: string;
+    name: string;
+    description: string;
+    icon: string;
+    rarity: string;
+    earned: boolean;
+    earnedAt: string | null;
+    progress: number;
+    xpReward: number;
+    gemsReward: number;
+  }[];
   modules: {
     id: string;
     lectureId: string;

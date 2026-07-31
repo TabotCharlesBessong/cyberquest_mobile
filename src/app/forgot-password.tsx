@@ -17,11 +17,13 @@ import { FormError, FormInput } from '@/components/FormComponents';
 import { useZodForm } from '@/hooks/useZodForm';
 import { forgotPasswordSchema, type ForgotPasswordInput } from '@/lib/schemas';
 import { api } from '@/lib/api';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack('/');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -62,7 +64,7 @@ export default function ForgotPasswordScreen() {
         ]}
         keyboardShouldPersistTaps="always"
       >
-        <Pressable style={styles.back} onPress={() => router.back()}>
+        <Pressable style={styles.back} onPress={safeBack}>
           <Text style={styles.backText}>‹ Back</Text>
         </Pressable>
 
@@ -89,7 +91,7 @@ export default function ForgotPasswordScreen() {
             )}
           </form.FormProvider>
 
-          <Pressable onPress={() => router.back()} style={styles.backRow}>
+          <Pressable onPress={safeBack} style={styles.backRow}>
             <Text style={styles.backLink}>Back to login</Text>
           </Pressable>
         </View>

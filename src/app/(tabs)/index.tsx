@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useRef } from 'react';
+import { useRouter } from "expo-router";
+import { useRef, useEffect, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -8,16 +8,39 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ProgressBar } from '@/components/ProgressBar';
-import { useHomeData } from '@/hooks/useHomeData';
-import { Brand, Spacing } from '@/constants/theme';
+import { ProgressBar } from "@/components/ProgressBar";
+import { QuestBanner } from "@/components/QuestBanner";
+import { StatsCard } from "@/components/StatsCard";
+import { useHomeData } from "@/hooks/useHomeData";
+import { useRecordActivity, useActiveEvent } from "@/hooks/useApiQueries";
+import { Brand, Spacing } from "@/constants/theme";
+import { api } from "@/lib/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const LAST_LESSON_KEY = "@cyberquest:lastLesson";
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const recordActivity = useRecordActivity();
+  const dailyLoginRef = useRef(false);
+  const eventQuery = useActiveEvent();
+  const activeEvent = eventQuery.data?.data as
+    | {
+        id: string;
+        name: string;
+        description: string;
+        multiplier: number;
+        startsAt: string;
+        endsAt: string;
+      }
+    | null
+    | undefined;
+  const [lastLesson, setLastLesson] = useState<{ sectionSlug: string; lessonId: string; unitId: string } | null>(null);
+
   const {
     user,
     lectures,
@@ -32,7 +55,32 @@ export default function HomeScreen() {
     total,
     isUnlocked,
     onRefresh,
+    quests,
+    questsQuery,
   } = useHomeData();
+
+  useEffect(() => {
+    if (!dailyLoginRef.current && user) {
+      dailyLoginRef.current = true;
+      recordActivity.mutate("daily_login");
+    }
+  }, [user, recordActivity]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_LESSON_KEY)
+      .then((raw) => {
+        if (raw) {
+          try {
+            setLastLesson(JSON.parse(raw));
+          } catch {
+            setLastLesson(null);
+          }
+        }
+      })
+      .catch(() => {
+        setLastLesson(null);
+      });
+  }, []);
 
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -54,7 +102,13 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+      <View
+        style={[
+          styles.flex,
+          styles.center,
+          { paddingTop: insets.top + Spacing.six },
+        ]}
+      >
         <Text style={styles.loadingText}>Loading your mission map...</Text>
       </View>
     );
@@ -62,7 +116,13 @@ export default function HomeScreen() {
 
   if (error) {
     return (
-      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+      <View
+        style={[
+          styles.flex,
+          styles.center,
+          { paddingTop: insets.top + Spacing.six },
+        ]}
+      >
         <Text style={styles.errorText}>{error}</Text>
         <Pressable onPress={onRefresh} style={styles.retryBtn}>
           <Text style={styles.retryText}>Try again</Text>
@@ -70,6 +130,8 @@ export default function HomeScreen() {
       </View>
     );
   }
+
+  const activeQuest = quests[0];
 
   return (
     <ScrollView
@@ -79,7 +141,11 @@ export default function HomeScreen() {
         { paddingTop: insets.top + Spacing.three },
       ]}
       refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Brand.primary} />
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={Brand.primary}
+        />
       }
     >
       <View style={styles.topBar}>
@@ -96,21 +162,84 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <View style={styles.statsRow}>
+        <StatsCard emoji="⭐" value={`${xp}`} label="XP" />
+        <StatsCard emoji="❤️" value={`${user?.hearts ?? 0}`} label="Hearts" />
+        <StatsCard
+          emoji="💎"
+          value={`${user?.gems ?? 0}`}
+          label="Gems"
+          accent
+        />
+      </View>
+
       <View style={styles.xpCard}>
         <View style={styles.xpRow}>
-          <Text style={styles.xpLabel}>Daily XP</Text>
-          <Text style={styles.xpValue}>{xp} XP</Text>
+          <Text style={styles.xpLabel}>Level Progress</Text>
+          <Text style={styles.xpValue}>
+            {xpIntoLevel} / {xpForNext} XP
+          </Text>
         </View>
         <ProgressBar value={xpIntoLevel / xpForNext} color={Brand.success} />
       </View>
 
-      <View style={styles.dailyQuest}>
-        <Text style={styles.dailyEmoji}>⚡</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.dailyTitle}>Daily Quest</Text>
-          <Text style={styles.dailySub}>Complete 1 lesson today</Text>
-        </View>
-      </View>
+      {activeQuest && (
+        <QuestBanner
+          emoji="⚡"
+          title={activeQuest.title}
+          description={activeQuest.description}
+          progress={activeQuest.progress}
+          target={activeQuest.target}
+          isCompleted={activeQuest.isCompleted}
+          isClaimed={activeQuest.isClaimed}
+          xpReward={activeQuest.xpReward}
+          gemsReward={activeQuest.gemsReward}
+          onClaim={async () => {
+            try {
+              await api.gamification.claimQuestReward(activeQuest.id);
+              questsQuery.refetch();
+            } catch (e) {
+              console.warn("Failed to claim quest", e);
+            }
+          }}
+        />
+      )}
+
+      {activeEvent && (
+        <Pressable style={styles.eventBanner} onPress={() => {}}>
+          <Text style={styles.eventEmoji}>🎉</Text>
+          <View style={styles.eventText}>
+            <Text style={styles.eventTitle}>{activeEvent.name}</Text>
+            <Text style={styles.eventSub}>{activeEvent.description}</Text>
+            <Text style={styles.eventMultiplier}>
+              {activeEvent.multiplier}x XP
+            </Text>
+          </View>
+        </Pressable>
+      )}
+
+      {lastLesson && (
+        <Pressable
+          style={styles.resumeBanner}
+          onPress={() => {
+            router.push({
+              pathname: "/lesson",
+              params: {
+                lecture: lastLesson.sectionSlug,
+                lessonId: lastLesson.lessonId,
+                unitId: lastLesson.unitId,
+              },
+            });
+          }}
+        >
+          <Text style={styles.resumeEmoji}>▶️</Text>
+          <View style={styles.resumeText}>
+            <Text style={styles.resumeTitle}>Continue Learning</Text>
+            <Text style={styles.resumeSub}>Pick up where you left off</Text>
+          </View>
+          <Text style={styles.resumeArrow}>›</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.sectionTitle}>Your Mission Map</Text>
 
@@ -118,13 +247,16 @@ export default function HomeScreen() {
         {lectures.map((m, i) => {
           const unlocked = isUnlocked(i);
           const progress = modules.find((p) => p.slug === m.slug);
-          const done = progress?.status === 'completed';
+          const done = progress?.status === "completed";
           return (
             <Pressable
               key={m.id}
               onPress={() => {
                 if (!unlocked) return;
-                router.push({ pathname: '/lesson', params: { lecture: m.slug } });
+                router.push({
+                  pathname: "/section/[slug]",
+                  params: { slug: m.slug },
+                });
               }}
               onPressIn={onPressIn}
               onPressOut={onPressOut}
@@ -139,32 +271,42 @@ export default function HomeScreen() {
               <Animated.View
                 style={[
                   styles.node,
-                  { backgroundColor: m.color, opacity: unlocked ? 1 : 0.5, transform: [{ scale }] },
+                  {
+                    backgroundColor: m.color,
+                    opacity: unlocked ? 1 : 0.5,
+                    transform: [{ scale }],
+                  },
                 ]}
               >
                 <View style={styles.nodeIcon}>
-                  <Text style={styles.nodeEmoji}>{unlocked ? m.icon : '🔒'}</Text>
+                  <Text style={styles.nodeEmoji}>
+                    {unlocked ? m.icon : "🔒"}
+                  </Text>
                 </View>
                 <View style={styles.nodeText}>
                   <Text style={styles.nodeTitle}>{m.title}</Text>
                   <Text style={styles.nodeSubtitle}>
-                    {unlocked ? m.subtitle : 'Locked — finish the world before!'}
+                    {unlocked
+                      ? m.subtitle
+                      : "Locked — finish the world before!"}
                   </Text>
                 </View>
                 <View style={styles.nodeStatus}>
                   {done ? (
                     <View style={styles.statusDone}>
-                      <Text style={styles.statusDoneText}>{m.badge} Review</Text>
+                      <Text style={styles.statusDoneText}>
+                        {m.badge} Review
+                      </Text>
                     </View>
                   ) : (
                     <View
                       style={[
                         styles.statusStart,
-                        { backgroundColor: 'rgba(255,255,255,0.25)' },
+                        { backgroundColor: "rgba(255,255,255,0.25)" },
                       ]}
                     >
                       <Text style={styles.statusStartText}>
-                        {unlocked ? 'Start ▶' : 'Locked'}
+                        {unlocked ? "Start ▶" : "Locked"}
                       </Text>
                     </View>
                   )}
@@ -184,53 +326,74 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.four },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.four,
+  },
   scroll: { flex: 1, backgroundColor: Brand.surface },
   container: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.six,
   },
-  loadingText: { fontSize: 16, fontWeight: '700', color: '#7c869c' },
-  errorText: { fontSize: 16, fontWeight: '700', color: Brand.danger, textAlign: 'center', marginBottom: Spacing.three },
-  retryBtn: { backgroundColor: Brand.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24 },
-  retryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  loadingText: { fontSize: 16, fontWeight: "700", color: "#7c869c" },
+  errorText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Brand.danger,
+    textAlign: "center",
+    marginBottom: Spacing.three,
   },
-  heroId: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  retryBtn: {
+    backgroundColor: Brand.primary,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  retryText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heroId: { flexDirection: "row", alignItems: "center", gap: Spacing.two },
   avatar: {
     fontSize: 40,
     width: 56,
     height: 56,
-    textAlign: 'center',
-    backgroundColor: '#fff',
+    textAlign: "center",
+    backgroundColor: "#fff",
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#e2e8f4',
-    overflow: 'hidden',
+    borderColor: "#e2e8f4",
+    overflow: "hidden",
     lineHeight: 56,
   },
-  hi: { fontSize: 20, fontWeight: '800', color: '#1c2742' },
-  level: { fontSize: 13, fontWeight: '700', color: Brand.primary },
+  hi: { fontSize: 20, fontWeight: "800", color: "#1c2742" },
+  level: { fontSize: 13, fontWeight: "700", color: Brand.primary },
   streak: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 14,
     gap: 6,
     borderWidth: 2,
-    borderColor: '#ffe2c2',
+    borderColor: "#ffe2c2",
   },
   streakEmoji: { fontSize: 20 },
-  streakNum: { fontSize: 18, fontWeight: '900', color: '#ff8a3d' },
+  streakNum: { fontSize: 18, fontWeight: "900", color: "#ff8a3d" },
+  statsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
   xpCard: {
     marginTop: Spacing.three,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: Spacing.three,
     gap: Spacing.two,
@@ -241,37 +404,23 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   xpRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  xpLabel: { fontSize: 14, fontWeight: '800', color: '#3a4560' },
-  xpValue: { fontSize: 14, fontWeight: '800', color: Brand.success },
-  dailyQuest: {
-    marginTop: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: Spacing.three,
-    borderWidth: 2,
-    borderColor: '#ffe2c2',
-  },
-  dailyEmoji: { fontSize: 28 },
-  dailyTitle: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
-  dailySub: { fontSize: 13, fontWeight: '600', color: '#7c869c' },
+  xpLabel: { fontSize: 14, fontWeight: "800", color: "#3a4560" },
+  xpValue: { fontSize: 14, fontWeight: "800", color: Brand.success },
   sectionTitle: {
     marginTop: Spacing.five,
     marginBottom: Spacing.two,
     fontSize: 20,
-    fontWeight: '900',
-    color: '#1c2742',
+    fontWeight: "900",
+    color: "#1c2742",
   },
   path: { gap: Spacing.three },
-  nodeWrap: { position: 'relative' },
+  nodeWrap: { position: "relative" },
   connector: {
-    position: 'absolute',
+    position: "absolute",
     left: 28,
     top: -Spacing.three,
     width: 4,
@@ -279,12 +428,12 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   node: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 22,
     padding: Spacing.three,
     gap: Spacing.three,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
@@ -294,33 +443,65 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   nodeEmoji: { fontSize: 34 },
   nodeText: { flex: 1, gap: 2 },
-  nodeTitle: { fontSize: 19, fontWeight: '900', color: '#fff' },
+  nodeTitle: { fontSize: 19, fontWeight: "900", color: "#fff" },
   nodeSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
+    color: "rgba(255,255,255,0.9)",
+    fontWeight: "600",
   },
   nodeStatus: {},
   statusDone: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 14,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  statusDoneText: { color: '#1c2742', fontWeight: '900', fontSize: 13 },
+  statusDoneText: { color: "#1c2742", fontWeight: "900", fontSize: 13 },
   statusStart: { borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12 },
-  statusStartText: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  statusStartText: { color: "#fff", fontWeight: "900", fontSize: 13 },
   progressFoot: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: Spacing.four,
-    color: '#7c869c',
+    color: "#7c869c",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
+  eventBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: Brand.warning,
+    marginBottom: Spacing.four,
+  },
+  eventEmoji: { fontSize: 28 },
+  eventText: { flex: 1 },
+  eventTitle: { fontSize: 15, fontWeight: "900", color: "#1c2742" },
+  eventSub: { fontSize: 13, fontWeight: "700", color: "#5b6478" },
+  eventMultiplier: { fontSize: 12, fontWeight: "800", color: Brand.warning },
+  resumeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: Brand.primary,
+    marginBottom: Spacing.four,
+  },
+  resumeEmoji: { fontSize: 24 },
+  resumeText: { flex: 1 },
+  resumeTitle: { fontSize: 15, fontWeight: "900", color: "#1c2742" },
+  resumeSub: { fontSize: 13, fontWeight: "700", color: "#5b6478" },
+  resumeArrow: { fontSize: 24, fontWeight: "900", color: Brand.primary },
 });
