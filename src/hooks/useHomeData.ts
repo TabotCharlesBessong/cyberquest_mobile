@@ -1,10 +1,14 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
-import { useAuthStore } from '@/stores/authStore';
-import { useLectures, useMyProgress } from './useApiQueries';
-import { trace } from '@/utils/debug';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  useCurriculumSections,
+  useMyProgress,
+  useDailyQuests,
+} from "./useApiQueries";
+import { trace } from "@/utils/debug";
 
-type Lecture = {
+type Section = {
   id: string;
   slug: string;
   title: string;
@@ -14,7 +18,7 @@ type Lecture = {
   badge: string;
   badgeName: string;
   order: number;
-  lessons: unknown[];
+  units: unknown[];
 };
 
 type ModuleProgress = {
@@ -34,33 +38,66 @@ type ModuleProgress = {
   completedAt: string | null;
 };
 
+type DailyQuest = {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  type: string;
+  target: number;
+  progress: number;
+  isCompleted: boolean;
+  isClaimed: boolean;
+  xpReward: number;
+  gemsReward: number;
+  expiresAt: string;
+};
+
 export function useHomeData() {
   const user = useAuthStore((s) => s.user);
   const storeModules = useAuthStore((s) => s.modules);
-  const lecturesQuery = useLectures(user?.ageGroup ?? 'A');
+  const sectionsQuery = useCurriculumSections(user?.ageGroup ?? "A");
   const progressQuery = useMyProgress();
+  const questsQuery = useDailyQuests();
 
-  const lectures = (lecturesQuery.data?.data as { lectures: Lecture[] } | undefined)?.lectures ?? [];
-  const modules = storeModules.length > 0 ? storeModules : (progressQuery.data?.data as { modules: ModuleProgress[] } | undefined)?.modules ?? [];
+  const sections =
+    (sectionsQuery.data?.data as { sections: Section[] } | undefined)
+      ?.sections ?? [];
+  const modules =
+    storeModules.length > 0
+      ? storeModules
+      : ((progressQuery.data?.data as { modules: ModuleProgress[] } | undefined)
+          ?.modules ?? []);
+  const quests =
+    (questsQuery.data?.data as { dailyQuests: DailyQuest[] } | undefined)
+      ?.dailyQuests ?? [];
   const xp = user?.xp ?? 0;
   const xpForNext = 100;
   const xpIntoLevel = xp % xpForNext;
-  const isLoading = lecturesQuery.isLoading || progressQuery.isLoading;
-  const error = lecturesQuery.error?.message || progressQuery.error?.message || '';
-  const isRefreshing = lecturesQuery.isFetching || progressQuery.isFetching;
+  const isLoading =
+    sectionsQuery.isLoading || progressQuery.isLoading || questsQuery.isLoading;
+  const error =
+    sectionsQuery.error?.message ||
+    progressQuery.error?.message ||
+    questsQuery.error?.message ||
+    "";
+  const isRefreshing =
+    sectionsQuery.isFetching ||
+    progressQuery.isFetching ||
+    questsQuery.isFetching;
 
-  const completedCount = modules.filter((m) => m.status === 'completed').length;
+  const completedCount = modules.filter((m) => m.status === "completed").length;
 
   function isUnlocked(index: number) {
     if (index === 0) return true;
-    const prev = lectures[index - 1];
+    const prev = sections[index - 1];
     const prevProgress = modules.find((m) => m.lectureId === prev.id);
-    const unlocked = prevProgress?.status === 'completed';
+    const unlocked = prevProgress?.status === "completed";
 
-    trace('isUnlocked', {
+    trace("isUnlocked", {
       index,
-      lectureId: prev.id,
-      lectureSlug: prev.slug,
+      sectionId: prev.id,
+      sectionSlug: prev.slug,
       moduleStatus: prevProgress?.status,
       unlocked,
       storeModulesCount: storeModules.length,
@@ -70,14 +107,16 @@ export function useHomeData() {
   }
 
   const onRefresh = useCallback(() => {
-    lecturesQuery.refetch();
+    sectionsQuery.refetch();
     progressQuery.refetch();
-  }, [lecturesQuery, progressQuery]);
+    questsQuery.refetch();
+  }, [sectionsQuery, progressQuery, questsQuery]);
 
   return {
     user,
-    lectures,
+    lectures: sections,
     modules,
+    quests,
     xp,
     xpForNext,
     xpIntoLevel,
@@ -85,10 +124,11 @@ export function useHomeData() {
     error,
     isRefreshing,
     completedCount,
-    total: lectures.length,
+    total: sections.length,
     isUnlocked,
     onRefresh,
-    lecturesQuery,
+    sectionsQuery,
     progressQuery,
+    questsQuery,
   };
 }

@@ -18,6 +18,7 @@ import { useZodForm } from '@/hooks/useZodForm';
 import { useLogin, useSignup } from '@/hooks/useApiQueries';
 import { useSetPendingEmail, useAuthActions, useCurrentUser } from '@/hooks/useAuth';
 import { loginSchema, signupSchema } from '@/lib/schemas';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 type Mode = 'signup' | 'login';
@@ -38,6 +39,7 @@ export default function AuthScreen() {
   const loginForm = useZodForm(loginSchema, { email: '', password: '' });
 
   const isSignup = mode === 'signup';
+  const safeBack = useSafeBack('/');
   const isLoading = loginMutation.isPending || signupMutation.isPending;
   const setPendingEmail = useSetPendingEmail();
   const { login: loginAction, signup: signupAction } = useAuthActions();
@@ -92,7 +94,7 @@ export default function AuthScreen() {
         ]}
         keyboardShouldPersistTaps="always"
       >
-        <Pressable style={styles.back} onPress={() => router.back()}>
+        <Pressable style={styles.back} onPress={safeBack}>
           <Text style={styles.backText}>‹ Back</Text>
         </Pressable>
 

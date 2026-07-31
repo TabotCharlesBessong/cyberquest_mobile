@@ -1,46 +1,64 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Brand, Spacing } from '@/constants/theme';
 import { useCurrentUser, useGems } from '@/hooks/useAuth';
-import { useBadges, useShopItems, usePurchaseItem } from '@/hooks/useApiQueries';
-import { BadgeCard } from '@/components/BadgeCard';
+import { useShopItems, usePurchaseItem, useRecordActivity } from '@/hooks/useApiQueries';
 import { ShopItemCard } from '@/components/ShopItemCard';
 import { StatsCard } from '@/components/StatsCard';
 
-export default function RewardsScreen() {
+type Category = 'all' | 'avatar' | 'powerup' | 'consumable';
+
+const CATEGORIES: { key: Category; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'avatar', label: 'Avatars' },
+  { key: 'powerup', label: 'Power-ups' },
+  { key: 'consumable', label: 'Consumables' },
+];
+
+export default function ShopScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const gems = useGems();
-  const badgesQuery = useBadges();
   const shopQuery = useShopItems();
   const purchaseMutation = usePurchaseItem();
+  const recordActivity = useRecordActivity();
+  const [category, setCategory] = useState<Category>('all');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const visitedRef = useRef(false);
 
-  const badges = (badgesQuery.data?.data as { badges: unknown[] } | undefined)?.badges ?? [];
+  useEffect(() => {
+    if (!visitedRef.current && user) {
+      visitedRef.current = true;
+      recordActivity.mutate('shop_visit');
+    }
+  }, [user, recordActivity]);
+
   const items = (shopQuery.data?.data as { items: unknown[] } | undefined)?.items ?? [];
-
-  if (!user) {
-    return (
-      <View style={[styles.flex, styles.center]}>
-        <Text style={styles.loadingText}>Please log in to view rewards.</Text>
-      </View>
-    );
-  }
+  const filtered = category === 'all' ? items : items.filter((i: any) => i.type === category);
 
   async function handlePurchase(item: { id: string; name: string; cost: number }) {
     setPurchasingId(item.id);
     try {
       await purchaseMutation.mutateAsync(item.id);
+      recordActivity.mutate('purchase');
       alert(`${item.name} purchased!`);
     } catch (e) {
       alert((e as Error)?.message || 'Purchase failed');
     } finally {
       setPurchasingId(null);
     }
+  }
+
+  if (!user) {
+    return (
+      <View style={[styles.flex, styles.center]}>
+        <Text style={styles.loadingText}>Please log in to visit the shop.</Text>
+      </View>
+    );
   }
 
   return (
@@ -51,7 +69,7 @@ export default function RewardsScreen() {
         { paddingTop: insets.top + Spacing.three },
       ]}
       refreshControl={
-        <RefreshControl refreshing={shopQuery.isFetching || badgesQuery.isFetching} onRefresh={() => { shopQuery.refetch(); badgesQuery.refetch(); }} tintColor={Brand.primary} />
+        <RefreshControl refreshing={shopQuery.isFetching} onRefresh={shopQuery.refetch} tintColor={Brand.primary} />
       }
     >
       <View style={styles.header}>
@@ -68,30 +86,28 @@ export default function RewardsScreen() {
         <StatsCard emoji="❤️" value={`${user.hearts}`} label="Hearts" />
       </View>
 
-      <Text style={styles.sectionTitle}>Badges</Text>
-      {badgesQuery.isLoading ? (
-        <Text style={styles.loadingText}>Loading badges...</Text>
-      ) : (
-        <View style={styles.badgeRow}>
-          {(badges as any[]).map((b) => (
-            <BadgeCard
-              key={b.id}
-              emoji={b.icon}
-              name={b.name}
-              description={b.description}
-              rarity={b.rarity}
-              earned={b.earned}
-            />
-          ))}
-        </View>
-      )}
+      <View style={styles.categoryRow}>
+        {CATEGORIES.map((cat) => (
+          <Pressable
+            key={cat.key}
+            onPress={() => setCategory(cat.key)}
+            style={[styles.categoryBtn, category === cat.key && styles.categoryBtnActive]}
+          >
+            <Text style={[styles.categoryText, category === cat.key && styles.categoryTextActive]}>
+              {cat.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
-      <Text style={styles.sectionTitle}>Shop</Text>
+      <Text style={styles.sectionTitle}>Items</Text>
       {shopQuery.isLoading ? (
         <Text style={styles.loadingText}>Loading shop...</Text>
+      ) : filtered.length === 0 ? (
+        <Text style={styles.emptyText}>No items available in this category.</Text>
       ) : (
-        <View style={styles.shopList}>
-          {(items as any[]).map((item) => (
+        <View style={styles.list}>
+          {(filtered as any[]).map((item) => (
             <ShopItemCard
               key={item.id}
               emoji={item.icon}
@@ -105,10 +121,6 @@ export default function RewardsScreen() {
           ))}
         </View>
       )}
-
-      <Pressable style={styles.shopTabBtn} onPress={() => router.push('/(tabs)/shop')}>
-        <Text style={styles.shopTabText}>Browse Full Shop</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -116,14 +128,20 @@ export default function RewardsScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.four },
-  loadingText: { fontSize: 16, fontWeight: '700', color: '#7c869c' },
   scroll: { flex: 1, backgroundColor: Brand.surface },
   container: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.six,
   },
-  header: { alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.four },
+  loadingText: { fontSize: 16, fontWeight: '700', color: '#7c869c', textAlign: 'center', marginTop: Spacing.four },
+  emptyText: { fontSize: 14, fontWeight: '600', color: '#7c869c', textAlign: 'center', marginTop: Spacing.three },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.four,
+  },
   title: { fontSize: 28, fontWeight: '900', color: '#1c2742' },
   gemRow: {
     flexDirection: 'row',
@@ -143,30 +161,40 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginBottom: Spacing.four,
   },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  categoryBtn: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f4',
+  },
+  categoryBtnActive: {
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primary,
+  },
+  categoryText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#7c869c',
+  },
+  categoryTextActive: {
+    color: '#fff',
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '900',
     color: '#1c2742',
-    marginTop: Spacing.five,
+    marginTop: Spacing.three,
     marginBottom: Spacing.two,
   },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  shopList: { gap: Spacing.two },
-  shopTabBtn: {
-    marginTop: Spacing.four,
-    backgroundColor: Brand.primary,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    shadowColor: Brand.shadow,
-    shadowOpacity: 0.5,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  shopTabText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
+  list: {
+    gap: Spacing.two,
   },
 });

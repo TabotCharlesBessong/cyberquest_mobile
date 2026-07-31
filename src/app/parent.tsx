@@ -6,11 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { useCurrentUser, useUserName } from '@/hooks/useAuth';
 import { useMyProgress } from '@/hooks/useApiQueries';
+import { useSafeBack } from '@/lib/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 
 export default function ParentScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack('/(tabs)/profile');
   const user = useCurrentUser();
   const name = useUserName();
   const [confirmed, setConfirmed] = useState<string[]>([]);
@@ -93,7 +95,7 @@ export default function ParentScreen() {
         <Tip emoji="⏰" text="Set screen-time limits together" />
       </View>
 
-      <Button label="Done" fullWidth onPress={() => router.back()} style={styles.doneBtn} />
+      <Button label="Done" fullWidth onPress={safeBack} style={styles.doneBtn} />
     </ScrollView>
   );
 }

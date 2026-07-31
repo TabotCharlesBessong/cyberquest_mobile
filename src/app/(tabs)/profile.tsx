@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,8 +12,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
+import { AvatarPreview } from '@/components/AvatarPreview';
+import { BadgeCard } from '@/components/BadgeCard';
+import { StatsCard } from '@/components/StatsCard';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useLogout } from '@/hooks/useAuth';
+import { useRecordActivity } from '@/hooks/useApiQueries';
 import { Brand, Spacing } from '@/constants/theme';
 
 export default function ProfileScreen() {
@@ -20,13 +25,20 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, data, isLoading, error, level, completedBadges, progressQuery } = useProfileData();
   const logout = useLogout();
+  const recordActivity = useRecordActivity();
+  const profileViewRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!user) {
         router.replace('/');
+        return;
       }
-    }, [user, router])
+      if (!profileViewRef.current) {
+        profileViewRef.current = true;
+        recordActivity.mutate('profile_view');
+      }
+    }, [user, router, recordActivity])
   );
 
   async function handleLogout() {
@@ -62,41 +74,51 @@ export default function ProfileScreen() {
         styles.container,
         { paddingTop: insets.top + Spacing.three },
       ]}
+      refreshControl={
+        <RefreshControl refreshing={progressQuery.isFetching} onRefresh={progressQuery.refetch} tintColor={Brand.primary} />
+      }
     >
       <View style={styles.card}>
-        <Text style={styles.avatar}>{p.avatar}</Text>
+        <AvatarPreview emoji={p.avatar || '🦊'} size={100} />
         <Text style={styles.name}>{p.name}</Text>
         <Text style={styles.age}>Age {p.age} · Group {p.ageGroup ?? 'A'}</Text>
 
         <View style={styles.statsRow}>
-          <Stat emoji="⭐" value={`${p.xp}`} label="XP" />
-          <Stat emoji="🔥" value={`${p.streak}`} label="Streak" />
-          <Stat emoji="💎" value={`${p.gems}`} label="Gems" />
+          <StatsCard emoji="⭐" value={`${p.xp}`} label="XP" />
+          <StatsCard emoji="🔥" value={`${p.streak}`} label="Streak" />
+          <StatsCard emoji="💎" value={`${p.gems}`} label="Gems" accent />
         </View>
         <View style={styles.statsRow}>
-          <Stat emoji="❤️" value={`${p.hearts}`} label="Hearts" />
-          <Stat emoji="🏅" value={`${completedBadges}`} label="Badges" />
-          <Stat emoji="📊" value={`${level}`} label="Level" />
+          <StatsCard emoji="❤️" value={`${p.hearts}`} label="Hearts" />
+          <StatsCard emoji="🏅" value={`${completedBadges}`} label="Badges" />
+          <StatsCard emoji="📊" value={`${level}`} label="Level" />
         </View>
       </View>
 
+      <Pressable style={styles.customizeBtn} onPress={() => router.push('/avatar-customizer')}>
+        <Text style={styles.customizeText}>🎨 Customize Avatar</Text>
+      </Pressable>
+
       <Text style={styles.sectionTitle}>Badges earned</Text>
-      {data && data.modules.filter((m) => m.status === 'completed').length === 0 ? (
+      {!data || data.badges.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            Complete a world to earn your first badge! 🌟
+            Complete lessons to earn your first badge! 🌟
           </Text>
         </View>
       ) : (
         <View style={styles.badgeGrid}>
-          {data?.modules
-            .filter((m) => m.status === 'completed')
-            .map((m) => (
-              <View key={m.id} style={styles.badgeCell}>
-                <Text style={styles.badgeEmoji}>{m.badge}</Text>
-                <Text style={styles.badgeName}>{m.badgeName}</Text>
-              </View>
-            ))}
+          {data.badges.map((b: any) => (
+            <BadgeCard
+              key={b.id}
+              emoji={b.icon}
+              name={b.name}
+              description={b.description}
+              rarity={b.rarity}
+              earned={b.earned}
+              onPress={() => router.push({ pathname: '/badge/[id]', params: { id: b.id } })}
+            />
+          ))}
         </View>
       )}
 
@@ -128,6 +150,9 @@ export default function ProfileScreen() {
         <Pressable style={styles.navBtn} onPress={() => router.push('/leaderboard')}>
           <Text style={styles.navBtnText}>🏆 Leaderboard</Text>
         </Pressable>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/league')}>
+          <Text style={styles.navBtnText}>🏅 League</Text>
+        </Pressable>
         <Pressable style={styles.navBtn} onPress={() => router.push('/parent')}>
           <Text style={styles.navBtnText}>👨‍👩‍👧 Parent</Text>
         </Pressable>
@@ -141,24 +166,6 @@ export default function ProfileScreen() {
         style={styles.logout}
       />
     </ScrollView>
-  );
-}
-
-function Stat({
-  emoji,
-  value,
-  label,
-}: {
-  emoji: string;
-  value: string;
-  label: string;
-}) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statEmoji}>{emoji}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -186,16 +193,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  avatar: {
-    fontSize: 64,
-    width: 100,
-    height: 100,
-    textAlign: 'center',
-    lineHeight: 100,
-    backgroundColor: Brand.surface,
-    borderRadius: 28,
-    overflow: 'hidden',
-  },
   name: { fontSize: 26, fontWeight: '900', color: '#1c2742', marginTop: 8 },
   age: { fontSize: 14, color: '#7c869c', fontWeight: '700', marginTop: 2 },
   statsRow: {
@@ -211,13 +208,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     minWidth: 84,
   },
-  statEmoji: { fontSize: 22 },
-  statValue: { fontSize: 20, fontWeight: '900', color: '#1c2742' },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#7c869c',
-    letterSpacing: 1,
+  customizeBtn: {
+    marginTop: Spacing.three,
+    backgroundColor: Brand.accent,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: Brand.shadow,
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  customizeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
   },
   sectionTitle: {
     fontSize: 20,
