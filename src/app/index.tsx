@@ -5,19 +5,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
 import { Mascot } from "@/components/Mascot";
+import { useCurrentUser, useIsAuthenticated } from "@/hooks/useAuth";
 import { Brand, Spacing } from "@/constants/theme";
-import { auth } from "@/lib/storage";
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const user = useCurrentUser();
+  const isAuthenticated = useIsAuthenticated();
 
   useEffect(() => {
-    const user = auth.getCurrentUser();
-    if (user && user.onboarded) {
+    if (isAuthenticated && user?.onboarded) {
       router.replace("/(tabs)");
+    } else if (isAuthenticated && user && !user.onboarded) {
+      router.replace("/onboarding");
     }
-  }, [router]);
+  }, [isAuthenticated, user, router]);
 
   return (
     <ScrollView
@@ -52,10 +55,6 @@ export default function WelcomeScreen() {
           <Text style={styles.secondary}>I already have an account</Text>
         </Pressable>
       </View>
-
-      <Text style={styles.footnote}>
-        Demo prototype · No backend your data stays on this device
-      </Text>
     </ScrollView>
   );
 }
@@ -120,10 +119,4 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
   },
   secondary: { color: Brand.primary, fontSize: 15, fontWeight: "700" },
-  footnote: {
-    color: "#9aa3b5",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: Spacing.two,
-  },
 });
