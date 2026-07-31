@@ -1,21 +1,24 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Celebration } from '@/components/Celebration';
-import { Mascot } from '@/components/Mascot';
-import { useLessonPlayer } from '@/hooks/useLessonPlayer';
-import { useSafeBack } from '@/lib/navigation';
-import type { LessonStep } from '@/data/types';
-import { Brand, Spacing } from '@/constants/theme';
-import { Pressable, ScrollView, Text, View, Animated } from 'react-native';
+import { Celebration } from "@/components/Celebration";
+import { Mascot } from "@/components/Mascot";
+import { useLessonPlayer } from "@/hooks/useLessonPlayer";
+import { useSafeBack } from "@/lib/navigation";
+import type { LessonStep } from "@/data/types";
+import { Brand, Spacing } from "@/constants/theme";
+import { Pressable, ScrollView, Text, View, Animated } from "react-native";
 
 export default function LessonScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const lectureSlug = typeof params.lecture === 'string' ? params.lecture : undefined;
-  const safeBack = useSafeBack('/(tabs)');
+  const lectureSlug =
+    typeof params.lecture === "string" ? params.lecture : undefined;
+  const lessonId =
+    typeof params.lessonId === "string" ? params.lessonId : undefined;
+  const safeBack = useSafeBack("/(tabs)");
 
   const {
     lecture,
@@ -37,7 +40,7 @@ export default function LessonScreen() {
     chooseOption,
     next,
     resetStepState,
-  } = useLessonPlayer(lectureSlug);
+  } = useLessonPlayer(lectureSlug, lessonId);
 
   const translateX = shake.interpolate({
     inputRange: [-1, 0, 1],
@@ -65,16 +68,31 @@ export default function LessonScreen() {
       <View
         style={[
           styles.flex,
-          { justifyContent: 'center', alignItems: 'center', paddingTop: insets.top },
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            paddingTop: insets.top,
+          },
         ]}
       >
-        <Text style={{ color: '#7c869c' }}>{error || 'Lesson not found.'}</Text>
+        <Text style={{ color: "#7c869c" }}>{error || "Lesson not found."}</Text>
         <Pressable
-          style={[styles.flex, { justifyContent: 'center', alignItems: 'center', paddingTop: insets.top }]}
+          style={[
+            styles.flex,
+            {
+              justifyContent: "center",
+              alignItems: "center",
+              paddingTop: insets.top,
+            },
+          ]}
         >
-          <Text style={{ color: '#7c869c' }}>{error || 'Lesson not found.'}</Text>
+          <Text style={{ color: "#7c869c" }}>
+            {error || "Lesson not found."}
+          </Text>
           <Pressable onPress={safeBack}>
-            <Text style={{ color: Brand.primary, fontWeight: '700', marginTop: 12 }}>
+            <Text
+              style={{ color: Brand.primary, fontWeight: "700", marginTop: 12 }}
+            >
               Go back
             </Text>
           </Pressable>
@@ -109,7 +127,9 @@ export default function LessonScreen() {
       >
         {total === 0 || !step ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>This lesson has no content yet.</Text>
+            <Text style={styles.emptyText}>
+              This lesson has no content yet.
+            </Text>
           </View>
         ) : (
           <Animated.View
@@ -118,7 +138,7 @@ export default function LessonScreen() {
               { opacity, transform: [{ translateY }, { translateX }] },
             ]}
           >
-            {step.type === 'story' ? (
+            {step.type === "story" ? (
               <StoryView step={step} />
             ) : (
               <QuizView
@@ -139,16 +159,18 @@ export default function LessonScreen() {
         ]}
       >
         {total === 0 || !step ? (
-          <Text style={styles.hintText}>No content available for this lesson.</Text>
+          <Text style={styles.hintText}>
+            No content available for this lesson.
+          </Text>
         ) : submitting ? (
           <Text style={styles.hintText}>Saving progress...</Text>
         ) : answered ? (
           <Pressable style={styles.continueBtn} onPress={next}>
             <Text style={styles.continueText}>
-              {isLast ? 'Finish 🎉' : 'Continue'}
+              {isLast ? "Finish 🎉" : "Continue"}
             </Text>
           </Pressable>
-        ) : step.type === 'story' ? (
+        ) : step.type === "story" ? (
           <Pressable style={styles.continueBtn} onPress={next}>
             <Text style={styles.continueText}>Continue</Text>
           </Pressable>
@@ -161,11 +183,11 @@ export default function LessonScreen() {
 
       <Celebration
         visible={celebrate}
-        emoji={lecture.badge}
-        title={finished ? 'World Complete!' : ''}
-        subtitle={`You earned the ${lecture.badgeName} badge!`}
+        emoji={lecture?.badge ?? "⭐"}
+        title={finished ? "Lesson Complete!" : ""}
+        subtitle={`You earned ${lecture?.badgeName ?? "XP"}!`}
         xp={result?.xpEarned ?? 30}
-        badgeName={lecture.badgeName}
+        badgeName={lecture?.badgeName ?? "Star"}
         onContinue={() => {
           resetStepState();
           safeBack();
@@ -175,17 +197,17 @@ export default function LessonScreen() {
   );
 }
 
-function StoryView({ step }: { step: Extract<LessonStep, { type: 'story' }> }) {
+function StoryView({ step }: { step: Extract<LessonStep, { type: "story" }> }) {
   return (
     <View style={styles.story}>
       <View style={styles.storyIcon}>
-        <Text style={styles.storyIconEmoji}>{step.icon ?? '🌟'}</Text>
+        <Text style={styles.storyIconEmoji}>{step.icon ?? "🌟"}</Text>
       </View>
       <Text style={styles.storyTitle}>{step.title}</Text>
       <Text style={styles.storyText}>{step.text}</Text>
 
       <View style={styles.speech}>
-        <Mascot emoji={step.mascot ?? '🦸'} size={56} bounce={false} />
+        <Mascot emoji={step.mascot ?? "🦸"} size={56} bounce={false} />
         <View style={styles.bubble}>
           <Text style={styles.bubbleText}>{step.speech}</Text>
         </View>
@@ -200,7 +222,7 @@ function QuizView({
   answered,
   onChoose,
 }: {
-  step: Extract<LessonStep, { type: 'quiz' }>;
+  step: Extract<LessonStep, { type: "quiz" }>;
   selected: number | null;
   answered: boolean;
   onChoose: (i: number) => void;
@@ -212,12 +234,12 @@ function QuizView({
         {step.options.map((opt, i) => {
           const isSelected = selected === i;
           const isCorrect = i === step.answer;
-          let state: 'idle' | 'selected' | 'correct' | 'wrong' | 'dim' = 'idle';
+          let state: "idle" | "selected" | "correct" | "wrong" | "dim" = "idle";
           if (answered) {
-            if (isCorrect) state = 'correct';
-            else if (isSelected) state = 'wrong';
-            else state = 'dim';
-          } else if (isSelected) state = 'selected';
+            if (isCorrect) state = "correct";
+            else if (isSelected) state = "wrong";
+            else state = "dim";
+          } else if (isSelected) state = "selected";
           return (
             <Pressable
               key={i}
@@ -225,17 +247,17 @@ function QuizView({
               disabled={answered}
               style={({ pressed }) => [
                 styles.option,
-                state === 'selected' && styles.optionSelected,
-                state === 'correct' && styles.optionCorrect,
-                state === 'wrong' && styles.optionWrong,
-                state === 'dim' && styles.optionDim,
+                state === "selected" && styles.optionSelected,
+                state === "correct" && styles.optionCorrect,
+                state === "wrong" && styles.optionWrong,
+                state === "dim" && styles.optionDim,
                 pressed && !answered && styles.optionPressed,
               ]}
             >
               <Text
                 style={[
                   styles.optionText,
-                  (state === 'correct' || state === 'wrong') &&
+                  (state === "correct" || state === "wrong") &&
                     styles.optionTextLight,
                 ]}
               >
@@ -268,11 +290,11 @@ function QuizView({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Brand.surface },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: 16, fontWeight: '700', color: '#7c869c' },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { fontSize: 16, fontWeight: "700", color: "#7c869c" },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
@@ -281,29 +303,29 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
-  closeText: { fontSize: 18, color: '#7c869c', fontWeight: '900' },
+  closeText: { fontSize: 18, color: "#7c869c", fontWeight: "900" },
   progressTrack: {
     flex: 1,
     height: 12,
-    backgroundColor: '#e3e9f6',
+    backgroundColor: "#e3e9f6",
     borderRadius: 999,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
+    height: "100%",
     backgroundColor: Brand.primary,
     borderRadius: 999,
   },
   stepCount: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#7c869c',
+    fontWeight: "800",
+    color: "#7c869c",
     minWidth: 36,
-    textAlign: 'right',
+    textAlign: "right",
   },
   scroll: { flex: 1 },
   content: {
@@ -314,51 +336,51 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: Spacing.six,
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#7c869c',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#7c869c",
+    textAlign: "center",
   },
   step: { flex: 1 },
   footer: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#eaeef7',
+    borderTopColor: "#eaeef7",
   },
   continueBtn: {
     backgroundColor: Brand.success,
     borderRadius: 18,
     paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#1f9e6e',
+    alignItems: "center",
+    shadowColor: "#1f9e6e",
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 0,
     borderBottomWidth: 4,
-    borderBottomColor: '#1f9e6e',
+    borderBottomColor: "#1f9e6e",
   },
-  continueText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  continueText: { color: "#fff", fontSize: 18, fontWeight: "900" },
   hintText: {
-    textAlign: 'center',
-    color: '#9aa3b5',
-    fontWeight: '700',
+    textAlign: "center",
+    color: "#9aa3b5",
+    fontWeight: "700",
     fontSize: 14,
   },
-  story: { alignItems: 'center', gap: Spacing.three, marginTop: Spacing.three },
+  story: { alignItems: "center", gap: Spacing.three, marginTop: Spacing.three },
   storyIcon: {
     width: 110,
     height: 110,
     borderRadius: 32,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: Brand.shadow,
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 4 },
@@ -368,65 +390,65 @@ const styles = StyleSheet.create({
   storyIconEmoji: { fontSize: 60 },
   storyTitle: {
     fontSize: 26,
-    fontWeight: '900',
-    color: '#1c2742',
-    textAlign: 'center',
+    fontWeight: "900",
+    color: "#1c2742",
+    textAlign: "center",
   },
   storyText: {
     fontSize: 17,
-    color: '#3a4560',
-    textAlign: 'center',
+    color: "#3a4560",
+    textAlign: "center",
     lineHeight: 25,
   },
   speech: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
     marginTop: Spacing.three,
   },
   bubble: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 18,
     padding: Spacing.three,
     borderWidth: 2,
-    borderColor: '#e6ecf8',
+    borderColor: "#e6ecf8",
   },
   bubbleText: {
     fontSize: 15,
-    color: '#2b3552',
-    fontWeight: '600',
+    color: "#2b3552",
+    fontWeight: "600",
     lineHeight: 22,
   },
   quiz: { gap: Spacing.four, marginTop: Spacing.three },
   quizQuestion: {
     fontSize: 22,
-    fontWeight: '900',
-    color: '#1c2742',
-    textAlign: 'center',
+    fontWeight: "900",
+    color: "#1c2742",
+    textAlign: "center",
   },
   options: { gap: Spacing.two },
   option: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 18,
     padding: Spacing.three,
     borderWidth: 2,
-    borderColor: '#e2e8f4',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderColor: "#e2e8f4",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  optionSelected: { borderColor: Brand.primary, backgroundColor: '#eef4ff' },
+  optionSelected: { borderColor: Brand.primary, backgroundColor: "#eef4ff" },
   optionCorrect: { backgroundColor: Brand.success, borderColor: Brand.success },
   optionWrong: { backgroundColor: Brand.danger, borderColor: Brand.danger },
   optionDim: { opacity: 0.5 },
   optionPressed: { transform: [{ scale: 0.98 }] },
-  optionText: { fontSize: 17, fontWeight: '700', color: '#2b3552', flex: 1 },
-  optionTextLight: { color: '#fff' },
+  optionText: { fontSize: 17, fontWeight: "700", color: "#2b3552", flex: 1 },
+  optionTextLight: { color: "#fff" },
   mark: {
     fontSize: 22,
-    color: '#fff',
-    fontWeight: '900',
+    color: "#fff",
+    fontWeight: "900",
     marginLeft: Spacing.two,
   },
   feedback: {
@@ -434,12 +456,12 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     marginTop: Spacing.two,
   },
-  feedbackGood: { backgroundColor: '#e3f8ef' },
-  feedbackBad: { backgroundColor: '#ffeaea' },
+  feedbackGood: { backgroundColor: "#e3f8ef" },
+  feedbackBad: { backgroundColor: "#ffeaea" },
   feedbackText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#2b3552',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#2b3552",
+    textAlign: "center",
   },
 });
