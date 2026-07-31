@@ -1,40 +1,71 @@
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useRef } from 'react';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button } from "@/components/Button";
-import { Brand, Spacing } from "@/constants/theme";
-import { MODULES } from "@/data/modules";
-import type { Progress, User } from "@/data/types";
-import { auth } from "@/lib/storage";
+import { Button } from '@/components/Button';
+import { AvatarPreview } from '@/components/AvatarPreview';
+import { BadgeCard } from '@/components/BadgeCard';
+import { StatsCard } from '@/components/StatsCard';
+import { useProfileData } from '@/hooks/useProfileData';
+import { useLogout } from '@/hooks/useAuth';
+import { useRecordActivity } from '@/hooks/useApiQueries';
+import { Brand, Spacing } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [user, setUser] = useState<User | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const { user, data, isLoading, error, level, completedBadges, progressQuery } = useProfileData();
+  const logout = useLogout();
+  const recordActivity = useRecordActivity();
+  const profileViewRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
-      const u = auth.getCurrentUser();
-      if (!u) {
-        router.replace("/");
+      if (!user) {
+        router.replace('/');
         return;
       }
-      setUser(u);
-      setProgress(auth.getProgress(u));
-    }, [router]),
+      if (!profileViewRef.current) {
+        profileViewRef.current = true;
+        recordActivity.mutate('profile_view');
+      }
+    }, [user, router, recordActivity])
   );
 
-  function logout() {
-    auth.logout();
-    router.replace("/");
+  async function handleLogout() {
+    await logout();
+    router.replace('/');
   }
 
-  if (!user || !progress) return <View style={styles.flex} />;
+  if (isLoading) {
+    return (
+      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
 
-  const level = Math.floor(progress.xp / 100) + 1;
+  if (error || !user) {
+    return (
+      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+        <Text style={styles.errorText}>{error || 'Not logged in.'}</Text>
+        <Pressable onPress={() => progressQuery.refetch()} style={styles.retryBtn}>
+          <Text style={styles.retryText}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const p = data?.user ?? user;
 
   return (
     <ScrollView
@@ -43,174 +74,183 @@ export default function ProfileScreen() {
         styles.container,
         { paddingTop: insets.top + Spacing.three },
       ]}
+      refreshControl={
+        <RefreshControl refreshing={progressQuery.isFetching} onRefresh={progressQuery.refetch} tintColor={Brand.primary} />
+      }
     >
       <View style={styles.card}>
-        <Text style={styles.avatar}>{user.avatar}</Text>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.age}>Age {user.age} · Cyber Hero</Text>
+        <AvatarPreview emoji={p.avatar || '🦊'} size={100} />
+        <Text style={styles.name}>{p.name}</Text>
+        <Text style={styles.age}>Age {p.age} · Group {p.ageGroup ?? 'A'}</Text>
 
         <View style={styles.statsRow}>
-          <Stat emoji="⭐" value={`${progress.xp}`} label="XP" />
-          <Stat emoji="🔥" value={`${progress.streak}`} label="Streak" />
-          <Stat emoji="🏅" value={`${progress.badges.length}`} label="Badges" />
+          <StatsCard emoji="⭐" value={`${p.xp}`} label="XP" />
+          <StatsCard emoji="🔥" value={`${p.streak}`} label="Streak" />
+          <StatsCard emoji="💎" value={`${p.gems}`} label="Gems" accent />
+        </View>
+        <View style={styles.statsRow}>
+          <StatsCard emoji="❤️" value={`${p.hearts}`} label="Hearts" />
+          <StatsCard emoji="🏅" value={`${completedBadges}`} label="Badges" />
+          <StatsCard emoji="📊" value={`${level}`} label="Level" />
         </View>
       </View>
 
+      <Pressable style={styles.customizeBtn} onPress={() => router.push('/avatar-customizer')}>
+        <Text style={styles.customizeText}>🎨 Customize Avatar</Text>
+      </Pressable>
+
       <Text style={styles.sectionTitle}>Badges earned</Text>
-      {progress.badges.length === 0 ? (
+      {!data || data.badges.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            Complete a world to earn your first badge! 🌟
+            Complete lessons to earn your first badge! 🌟
           </Text>
         </View>
       ) : (
         <View style={styles.badgeGrid}>
-          {MODULES.filter((m) => progress.completedModules.includes(m.id)).map(
-            (m) => (
-              <View key={m.id} style={styles.badgeCell}>
-                <Text style={styles.badgeEmoji}>{m.badge}</Text>
-                <Text style={styles.badgeName}>{m.badgeName}</Text>
-              </View>
-            ),
-          )}
+          {data.badges.map((b: any) => (
+            <BadgeCard
+              key={b.id}
+              emoji={b.icon}
+              name={b.name}
+              description={b.description}
+              rarity={b.rarity}
+              earned={b.earned}
+              onPress={() => router.push({ pathname: '/badge/[id]', params: { id: b.id } })}
+            />
+          ))}
         </View>
       )}
 
       <Text style={styles.sectionTitle}>World progress</Text>
       <View style={styles.modules}>
-        {MODULES.map((m) => {
-          const done = progress.completedModules.includes(m.id);
-          return (
-            <View key={m.id} style={styles.moduleRow}>
-              <View style={[styles.moduleDot, { backgroundColor: m.color }]}>
-                <Text style={styles.moduleEmoji}>{done ? "✓" : m.icon}</Text>
-              </View>
-              <View style={styles.moduleText}>
-                <Text style={styles.moduleTitle}>{m.title}</Text>
-                <Text style={styles.moduleSub}>
-                  {done ? "Completed" : "Not started"}
-                </Text>
-              </View>
-              {done ? (
-                <Text style={styles.moduleCheck}>✓</Text>
-              ) : (
-                <Text style={styles.moduleLock}>○</Text>
-              )}
+        {data?.modules.map((m) => (
+          <View key={m.id} style={styles.moduleRow}>
+            <View style={[styles.moduleDot, { backgroundColor: m.color }]}>
+              <Text style={styles.moduleEmoji}>
+                {m.status === 'completed' ? '✓' : m.icon}
+              </Text>
             </View>
-          );
-        })}
+            <View style={styles.moduleText}>
+              <Text style={styles.moduleTitle}>{m.title}</Text>
+              <Text style={styles.moduleSub}>
+                {m.status === 'completed' ? 'Completed' : m.status === 'in_progress' ? 'In progress' : 'Not started'}
+              </Text>
+            </View>
+            {m.status === 'completed' ? (
+              <Text style={styles.moduleCheck}>✓</Text>
+            ) : (
+              <Text style={styles.moduleLock}>○</Text>
+            )}
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.navRow}>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/leaderboard')}>
+          <Text style={styles.navBtnText}>🏆 Leaderboard</Text>
+        </Pressable>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/league')}>
+          <Text style={styles.navBtnText}>🏅 League</Text>
+        </Pressable>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/parent')}>
+          <Text style={styles.navBtnText}>👨‍👩‍👧 Parent</Text>
+        </Pressable>
       </View>
 
       <Button
         label="Log out"
         variant="secondary"
         fullWidth
-        onPress={logout}
+        onPress={handleLogout}
         style={styles.logout}
       />
-      <Text style={styles.demoNote}>
-        Demo prototype data is stored locally on this device.
-      </Text>
     </ScrollView>
-  );
-}
-
-function Stat({
-  emoji,
-  value,
-  label,
-}: {
-  emoji: string;
-  value: string;
-  label: string;
-}) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statEmoji}>{emoji}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.four },
   scroll: { flex: 1, backgroundColor: Brand.surface },
   container: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.six,
   },
+  loadingText: { fontSize: 16, fontWeight: '700', color: '#7c869c' },
+  errorText: { fontSize: 16, fontWeight: '700', color: Brand.danger, textAlign: 'center', marginBottom: Spacing.three },
+  retryBtn: { backgroundColor: Brand.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24 },
+  retryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderRadius: 24,
     padding: Spacing.five,
-    alignItems: "center",
+    alignItems: 'center',
     shadowColor: Brand.shadow,
     shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
     elevation: 3,
   },
-  avatar: {
-    fontSize: 64,
-    width: 100,
-    height: 100,
-    textAlign: "center",
-    lineHeight: 100,
-    backgroundColor: Brand.surface,
-    borderRadius: 28,
-    overflow: "hidden",
-  },
-  name: { fontSize: 26, fontWeight: "900", color: "#1c2742", marginTop: 8 },
-  age: { fontSize: 14, color: "#7c869c", fontWeight: "700", marginTop: 2 },
+  name: { fontSize: 26, fontWeight: '900', color: '#1c2742', marginTop: 8 },
+  age: { fontSize: 14, color: '#7c869c', fontWeight: '700', marginTop: 2 },
   statsRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: Spacing.three,
     marginTop: Spacing.four,
   },
   stat: {
-    alignItems: "center",
+    alignItems: 'center',
     backgroundColor: Brand.surface,
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 18,
     minWidth: 84,
   },
-  statEmoji: { fontSize: 22 },
-  statValue: { fontSize: 20, fontWeight: "900", color: "#1c2742" },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#7c869c",
-    letterSpacing: 1,
+  customizeBtn: {
+    marginTop: Spacing.three,
+    backgroundColor: Brand.accent,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: Brand.shadow,
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  customizeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: "900",
-    color: "#1c2742",
+    fontWeight: '900',
+    color: '#1c2742',
     marginTop: Spacing.five,
     marginBottom: Spacing.two,
   },
   empty: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: Spacing.three,
-    alignItems: "center",
+    alignItems: 'center',
   },
   emptyText: {
-    color: "#7c869c",
+    color: '#7c869c',
     fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   badgeCell: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderRadius: 18,
     padding: Spacing.three,
-    alignItems: "center",
-    width: "30%",
+    alignItems: 'center',
+    width: '30%',
     shadowColor: Brand.shadow,
     shadowOpacity: 0.4,
     shadowOffset: { width: 0, height: 2 },
@@ -220,16 +260,16 @@ const styles = StyleSheet.create({
   badgeEmoji: { fontSize: 40 },
   badgeName: {
     fontSize: 12,
-    fontWeight: "800",
-    color: "#3a4560",
+    fontWeight: '800',
+    color: '#3a4560',
     marginTop: 4,
-    textAlign: "center",
+    textAlign: 'center',
   },
   modules: { gap: Spacing.two },
   moduleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: Spacing.three,
     gap: Spacing.three,
@@ -238,20 +278,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  moduleEmoji: { fontSize: 22, color: "#fff", fontWeight: "900" },
+  moduleEmoji: { fontSize: 22, color: '#fff', fontWeight: '900' },
   moduleText: { flex: 1 },
-  moduleTitle: { fontSize: 16, fontWeight: "800", color: "#1c2742" },
-  moduleSub: { fontSize: 12, color: "#7c869c", fontWeight: "600" },
-  moduleCheck: { fontSize: 22, color: Brand.success, fontWeight: "900" },
-  moduleLock: { fontSize: 20, color: "#c4ccdb" },
-  logout: { marginTop: Spacing.five },
-  demoNote: {
-    textAlign: "center",
-    color: "#9aa3b5",
-    fontSize: 12,
-    marginTop: Spacing.three,
+  moduleTitle: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
+  moduleSub: { fontSize: 12, color: '#7c869c', fontWeight: '600' },
+  moduleCheck: { fontSize: 22, color: Brand.success, fontWeight: '900' },
+  moduleLock: { fontSize: 20, color: '#c4ccdb' },
+  navRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.four },
+  navBtn: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f4',
   },
+  navBtnText: { fontSize: 15, fontWeight: '800', color: Brand.primary },
+  logout: { marginTop: Spacing.five },
 });

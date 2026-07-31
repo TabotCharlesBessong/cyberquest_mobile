@@ -1,143 +1,47 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
-import { getModule } from "@/data/modules";
+import { useLessonPlayer } from "@/hooks/useLessonPlayer";
+import { useSafeBack } from "@/lib/navigation";
 import type { LessonStep } from "@/data/types";
-import { auth } from "@/lib/storage";
 import { Brand, Spacing } from "@/constants/theme";
+import { Pressable, ScrollView, Text, View, Animated } from "react-native";
 
 export default function LessonScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const moduleId = Array.isArray(params.module)
-    ? params.module[0]
-    : params.module;
+  const lectureSlug =
+    typeof params.lecture === "string" ? params.lecture : undefined;
+  const lessonId =
+    typeof params.lessonId === "string" ? params.lessonId : undefined;
+  const safeBack = useSafeBack("/(tabs)");
 
-  const module = moduleId ? getModule(moduleId) : undefined;
-  const [stepIndex, setStepIndex] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [answered, setAnswered] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [celebrate, setCelebrate] = useState(false);
+  const {
+    lecture,
+    loading,
+    error,
+    stepIndex,
+    selected,
+    answered,
+    finished,
+    celebrate,
+    submitting,
+    result,
+    total,
+    step,
+    isLast,
+    progress,
+    enter,
+    shake,
+    chooseOption,
+    next,
+    resetStepState,
+  } = useLessonPlayer(lectureSlug, lessonId);
 
-  const enter = useRef(new Animated.Value(0)).current;
-  const shake = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    setStepIndex(0);
-    setSelected(null);
-    setAnswered(false);
-    setCorrectCount(0);
-    setFinished(false);
-    setCelebrate(false);
-  }, [moduleId]);
-
-  useEffect(() => {
-    enter.setValue(0);
-    Animated.timing(enter, {
-      toValue: 1,
-      duration: 400,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [stepIndex, enter]);
-
-  if (!module) {
-    return (
-      <View
-        style={[
-          styles.flex,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <Text style={{ color: "#7c869c" }}>Lesson not found.</Text>
-        <Pressable onPress={() => router.back()}>
-          <Text
-            style={{ color: Brand.primary, fontWeight: "700", marginTop: 12 }}
-          >
-            Go back
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const total = module.steps.length;
-  const step: LessonStep = module.steps[stepIndex];
-  const isLast = stepIndex === total - 1;
-
-  function chooseOption(index: number) {
-    if (answered) return;
-    setSelected(index);
-    setAnswered(true);
-    const correct = step.type === "quiz" && index === step.answer;
-    if (correct) setCorrectCount((c) => c + 1);
-    if (!correct && step.type === "quiz") {
-      Animated.sequence([
-        Animated.timing(shake, {
-          toValue: 1,
-          duration: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shake, {
-          toValue: -1,
-          duration: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shake, {
-          toValue: 1,
-          duration: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shake, {
-          toValue: 0,
-          duration: 60,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }
-
-  function next() {
-    if (isLast) {
-      finishLesson();
-      return;
-    }
-    setStepIndex((i) => i + 1);
-    setSelected(null);
-    setAnswered(false);
-  }
-
-  function finishLesson() {
-    const user = auth.getCurrentUser();
-    if (user) {
-      auth.recordModuleComplete(
-        user,
-        module!.id,
-        module!.badge,
-        module!.badgeName,
-        module!.steps.map((s) => s.id),
-      );
-    }
-    setFinished(true);
-    setCelebrate(true);
-  }
-
-  const progress = (stepIndex + (answered ? 1 : 0)) / total;
   const translateX = shake.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: [-10, 0, 10],
@@ -151,10 +55,56 @@ export default function LessonScreen() {
     outputRange: [24, 0],
   });
 
+  if (loading) {
+    return (
+      <View style={[styles.flex, styles.center, { paddingTop: insets.top }]}>
+        <Text style={styles.loadingText}>Loading lesson...</Text>
+      </View>
+    );
+  }
+
+  if (error || !lecture) {
+    return (
+      <View
+        style={[
+          styles.flex,
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <Text style={{ color: "#7c869c" }}>{error || "Lesson not found."}</Text>
+        <Pressable
+          style={[
+            styles.flex,
+            {
+              justifyContent: "center",
+              alignItems: "center",
+              paddingTop: insets.top,
+            },
+          ]}
+        >
+          <Text style={{ color: "#7c869c" }}>
+            {error || "Lesson not found."}
+          </Text>
+          <Pressable onPress={safeBack}>
+            <Text
+              style={{ color: Brand.primary, fontWeight: "700", marginTop: 12 }}
+            >
+              Go back
+            </Text>
+          </Pressable>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.closeBtn}>
+        <Pressable onPress={safeBack} style={styles.closeBtn}>
           <Text style={styles.closeText}>✕</Text>
         </Pressable>
         <View style={styles.progressTrack}>
@@ -175,23 +125,31 @@ export default function LessonScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View
-          style={[
-            styles.step,
-            { opacity, transform: [{ translateY }, { translateX }] },
-          ]}
-        >
-          {step.type === "story" ? (
-            <StoryView step={step} />
-          ) : (
-            <QuizView
-              step={step}
-              selected={selected}
-              answered={answered}
-              onChoose={chooseOption}
-            />
-          )}
-        </Animated.View>
+        {total === 0 || !step ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>
+              This lesson has no content yet.
+            </Text>
+          </View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.step,
+              { opacity, transform: [{ translateY }, { translateX }] },
+            ]}
+          >
+            {step.type === "story" ? (
+              <StoryView step={step} />
+            ) : (
+              <QuizView
+                step={step}
+                selected={selected}
+                answered={answered}
+                onChoose={chooseOption}
+              />
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
 
       <View
@@ -200,7 +158,13 @@ export default function LessonScreen() {
           { paddingBottom: insets.bottom + Spacing.three },
         ]}
       >
-        {answered ? (
+        {total === 0 || !step ? (
+          <Text style={styles.hintText}>
+            No content available for this lesson.
+          </Text>
+        ) : submitting ? (
+          <Text style={styles.hintText}>Saving progress...</Text>
+        ) : answered ? (
           <Pressable style={styles.continueBtn} onPress={next}>
             <Text style={styles.continueText}>
               {isLast ? "Finish 🎉" : "Continue"}
@@ -219,11 +183,15 @@ export default function LessonScreen() {
 
       <Celebration
         visible={celebrate}
-        emoji={module.badge}
-        title={finished ? "World Complete!" : ""}
-        subtitle={`You earned the ${module.badgeName} badge!`}
-        badgeName={module.badgeName}
-        onContinue={() => router.back()}
+        emoji={lecture?.badge ?? "⭐"}
+        title={finished ? "Lesson Complete!" : ""}
+        subtitle={`You earned ${lecture?.badgeName ?? "XP"}!`}
+        xp={result?.xpEarned ?? 30}
+        badgeName={lecture?.badgeName ?? "Star"}
+        onContinue={() => {
+          resetStepState();
+          safeBack();
+        }}
       />
     </View>
   );
@@ -266,7 +234,7 @@ function QuizView({
         {step.options.map((opt, i) => {
           const isSelected = selected === i;
           const isCorrect = i === step.answer;
-          let state = "idle";
+          let state: "idle" | "selected" | "correct" | "wrong" | "dim" = "idle";
           if (answered) {
             if (isCorrect) state = "correct";
             else if (isSelected) state = "wrong";
@@ -310,9 +278,7 @@ function QuizView({
         <View
           style={[
             styles.feedback,
-            step.type === "quiz" && selected === step.answer
-              ? styles.feedbackGood
-              : styles.feedbackBad,
+            selected === step.answer ? styles.feedbackGood : styles.feedbackBad,
           ]}
         >
           <Text style={styles.feedbackText}>{step.explanation}</Text>
@@ -324,6 +290,8 @@ function QuizView({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Brand.surface },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { fontSize: 16, fontWeight: "700", color: "#7c869c" },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -365,6 +333,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.four,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.six,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#7c869c",
+    textAlign: "center",
   },
   step: { flex: 1 },
   footer: {
