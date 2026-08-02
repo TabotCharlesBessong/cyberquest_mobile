@@ -9,7 +9,7 @@ import {
   useMyProgress,
 } from "@/hooks/useApiQueries";
 import { useAuthStore } from "@/stores/authStore";
-import { Brand, Spacing } from "@/constants/theme";
+import { Brand, Spacing, Layout, Rounded, Typography, Surface, Primary, Secondary, Tertiary } from "@/constants/theme";
 import {
   Pressable,
   ScrollView,
@@ -20,39 +20,9 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const LESSON_COLORS = [
-  "#4D96FF",
-  "#FF7A59",
-  "#2BC48A",
-  "#F59E0B",
-  "#9B5DE5",
-  "#00C9A7",
-  "#FF6B6B",
-  "#845EF7",
-  "#20C997",
-  "#FD7E14",
-];
-
-const LESSON_ICONS = [
-  "🌟",
-  "🔒",
-  "🛡️",
-  "🎯",
-  "🚀",
-  "💡",
-  "🔍",
-  "🎨",
-  "🧩",
-  "⚡",
-];
-
-const STORAGE_KEYS = {
-  lastLesson: "@cyberquest:lastLesson",
-};
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CIRCLE_SIZE = 129;
-const HORIZONTAL_PADDING = Spacing.four * 2;
+const HORIZONTAL_PADDING = Layout.containerMarginMobile;
 const CENTER_GAP = 16;
 
 type Point = { x: number; y: number };
@@ -86,6 +56,10 @@ function snakeLayout(
 
   return points;
 }
+
+const STORAGE_KEYS = {
+  lastLesson: "@cyberquest:lastLesson",
+};
 
 export default function SectionDetailScreen() {
   const router = useRouter();
@@ -265,9 +239,9 @@ export default function SectionDetailScreen() {
                 if (!pos) return null;
 
                 const lessonColor =
-                  LESSON_COLORS[lessonIndex % LESSON_COLORS.length];
+                  Primary.primaryContainer ?? "#4D96FF";
                 const lessonIcon =
-                  LESSON_ICONS[lessonIndex % LESSON_ICONS.length];
+                  "🌟";
                 const isCompleted = lessonProgressMap[lesson.id];
                 const isLastVisited = lastLessonId === lesson.id;
 
@@ -298,7 +272,7 @@ export default function SectionDetailScreen() {
                       style={({ pressed }) => [
                         styles.lessonCircle,
                         {
-                          backgroundColor: isLessonLocked ? "#cbd5e1" : lessonColor,
+                          backgroundColor: isLessonLocked ? Surface.surfaceContainerHighest : lessonColor,
                           borderColor: isCompleted
                             ? Brand.success
                             : isLastVisited
@@ -428,12 +402,12 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     backgroundColor: Brand.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    borderRadius: Rounded.DEFAULT,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
   },
   backText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  scroll: { flex: 1, backgroundColor: Brand.surface },
+  scroll: { flex: 1, backgroundColor: Surface.surface },
   container: {
     flexGrow: 1,
     paddingHorizontal: 0,
@@ -547,7 +521,7 @@ const styles = StyleSheet.create({
   lessonCircleLabelLocked: { color: "#9aa3b5" },
   nextSectionBtn: {
     backgroundColor: Brand.primary,
-    borderRadius: 16,
+    borderRadius: Rounded.DEFAULT,
     paddingVertical: Spacing.four,
     alignItems: "center",
     marginTop: Spacing.four,
