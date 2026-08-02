@@ -1,7 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 import {
   useCurriculumSection,
@@ -15,51 +18,24 @@ import {
   ScrollView,
   Text,
   View,
-  Animated,
-  Dimensions,
+  type ColorValue,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CIRCLE_SIZE = 129;
-const HORIZONTAL_PADDING = Layout.containerMarginMobile;
-const CENTER_GAP = 16;
-
-type Point = { x: number; y: number };
-
-function snakeLayout(
-  count: number,
-  containerWidth: number,
-  rowHeight: number
-): Point[] {
-  const usableWidth = containerWidth - HORIZONTAL_PADDING;
-  const points: Point[] = [];
-  let index = 0;
-
-  while (index < count) {
-    const row = Math.floor(index / 2);
-    const y = row * rowHeight;
-
-    if (index + 1 < count) {
-      const isEvenRow = row % 2 === 0;
-      const leftX = isEvenRow ? 0 : usableWidth - CIRCLE_SIZE;
-      const rightX = isEvenRow ? usableWidth - CIRCLE_SIZE : 0;
-
-      points.push({ x: leftX, y });
-      points.push({ x: rightX, y });
-      index += 2;
-    } else {
-      points.push({ x: usableWidth / 2 - CIRCLE_SIZE / 2, y });
-      index += 1;
-    }
-  }
-
-  return points;
-}
-
 const STORAGE_KEYS = {
   lastLesson: "@cyberquest:lastLesson",
 };
+
+const UNIT_GRADIENTS: readonly ColorValue[][] = [
+  [Primary.primary as any, Primary.primaryContainer as any],
+  [Secondary.secondary as any, Secondary.secondaryContainer as any],
+  [Tertiary.tertiary as any, Tertiary.tertiaryContainer as any],
+  [Brand.success as any, "#2BC48A" as any],
+  [Brand.warning as any, "#FFC93C" as any],
+  [Brand.danger as any, "#FF6B6B" as any],
+  [Brand.accent as any, Secondary.secondaryContainer as any],
+  [Tertiary.tertiaryContainer as any, Tertiary.tertiaryFixed as any],
+];
 
 export default function SectionDetailScreen() {
   const router = useRouter();
@@ -141,11 +117,6 @@ export default function SectionDetailScreen() {
     await AsyncStorage.setItem(STORAGE_KEYS.lastLesson, lessonId);
   };
 
-  const containerWidth = useMemo(
-    () => SCREEN_WIDTH - HORIZONTAL_PADDING,
-    []
-  );
-
   const allUnitsCompleted = units.length > 0 && units.every((unit: any) => {
     const lessons = unit.lessons ?? [];
     return lessons.length > 0 && lessons.every((l: any) => lessonProgressMap[l.id]);
@@ -153,382 +124,496 @@ export default function SectionDetailScreen() {
 
   if (sectionQuery.isLoading) {
     return (
-      <View
-        style={[
-          styles.flex,
-          styles.center,
-          { paddingTop: insets.top + Spacing.six },
-        ]}
-      >
-        <Text style={styles.loadingText}>Loading section...</Text>
+      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+        <Text style={[Typography.bodyMd, { color: Surface.onSurfaceVariant }]}>Loading section...</Text>
       </View>
     );
   }
 
   if (!section) {
     return (
-      <View
-        style={[
-          styles.flex,
-          styles.center,
-          { paddingTop: insets.top + Spacing.six },
-        ]}
-      >
-        <Text style={styles.errorText}>Section not found</Text>
+      <View style={[styles.flex, styles.center, { paddingTop: insets.top + Spacing.six }]}>
+        <Text style={[Typography.headlineMd, { color: Brand.danger, marginBottom: Spacing.three }]}>Section not found</Text>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>Go back</Text>
+          <Text style={[Typography.headlineMd, { color: Surface.surfaceContainerLowest }]}>Go back</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={[
-        styles.container,
-        { paddingTop: insets.top + Spacing.three },
-      ]}
-    >
-      <View style={[styles.header, { backgroundColor: section.color }]}>
-        <Text style={styles.headerIcon}>{section.icon}</Text>
-        <Text style={styles.headerTitle}>{section.title}</Text>
-        <Text style={styles.headerSub}>{section.subtitle}</Text>
+    <View style={styles.root}>
+      {/* ── TOP NAV ─────────────────────────────────────── */}
+      <View style={[styles.topNav, { paddingTop: insets.top }]}>
+        <View style={styles.navLeft}>
+          <View style={styles.avatarRing}>
+            <Text style={{ fontSize: 18 }}>🧒</Text>
+          </View>
+          <Text style={[Typography.headlineLg, { color: Primary.primary, fontSize: 20 }]}>CyberQuest</Text>
+        </View>
+        <View style={styles.xpChip}>
+          <Text style={[Typography.labelCaps, { color: Surface.onSurface }]}>⚡ 450 XP</Text>
+        </View>
       </View>
 
-      {units.map((unit: any, unitIndex: number) => {
-        const lessons = unit.lessons ?? [];
-        const positions = snakeLayout(
-          lessons.length,
-          SCREEN_WIDTH,
-          160
-        );
-
-        const maxRow = lessons.length > 0 ? Math.ceil(lessons.length / 2) : 0;
-        const pathHeight = maxRow * 160;
-
-        const prevUnitCompleted = unitIndex === 0 || units.slice(0, unitIndex).every((prevUnit: any) => {
-          const prevLessons = prevUnit.lessons ?? [];
-          return prevLessons.length > 0 && prevLessons.every((l: any) => lessonProgressMap[l.id]);
-        });
-        const isUnitLocked = unitIndex > 0 && !prevUnitCompleted;
-
-        return (
-          <View
-            key={unit.id}
-            style={[
-              styles.unitCard,
-              { backgroundColor: section.color + "14" },
-              { borderLeftColor: section.color },
-            ]}
-          >
-            <View style={styles.unitHeader}>
-              <Text style={styles.unitIcon}>{unit.icon}</Text>
-              <View style={styles.unitText}>
-                <Text style={[styles.unitTitle, isUnitLocked && styles.unitTitleLocked]}>{unit.title}</Text>
-                <Text style={styles.unitDesc}>{unit.description}</Text>
-              </View>
-              {isUnitLocked && (
-                <Text style={styles.unitLockText}>🔒</Text>
-              )}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: Surface.surface }}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 96 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── STREAK + MASCOT ──────────────────────────────────── */}
+        <View style={styles.statsRow}>
+          <View style={{ flex: 1, gap: Spacing.two }}>
+            <View style={styles.streakBadge}>
+              <Text style={[Typography.labelCaps, { color: Secondary.onSecondaryContainer, fontSize: 13 }]}>
+                🔥 5 DAY STREAK
+              </Text>
             </View>
+            <View style={styles.xpBarTrack}>
+              <LinearGradient
+                colors={[Primary.primary, Secondary.secondary]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={[styles.xpBarFill, { width: "65%" }]}
+              />
+            </View>
+            <Text style={[Typography.labelCaps, { color: Surface.onSurfaceVariant }]}>
+              LVL 12 • 150XP TO NEXT LEVEL
+            </Text>
+          </View>
 
-            <View style={[styles.snakeContainer, { height: pathHeight }]}>
-              {lessons.map((lesson: any, lessonIndex: number) => {
-                const pos = positions[lessonIndex];
-                if (!pos) return null;
-
-                const lessonColor =
-                  Primary.primaryContainer ?? "#4D96FF";
-                const lessonIcon =
-                  "🌟";
-                const isCompleted = lessonProgressMap[lesson.id];
-                const isLastVisited = lastLessonId === lesson.id;
-
-                const prevLessonCompleted = lessonIndex === 0 || lessons.slice(0, lessonIndex).every((prevLesson: any) => lessonProgressMap[prevLesson.id]);
-                const isLessonLocked = isUnitLocked || !prevLessonCompleted;
-
-                return (
-                  <View
-                    key={lesson.id}
-                    style={[
-                      styles.snakeItem,
-                      {
-                        left: pos.x + Spacing.four,
-                        top: pos.y,
-                      },
-                    ]}
-                  >
-                    {lessonIndex > 0 && (
-                      <ConnectorLine
-                        from={positions[lessonIndex - 1]}
-                        to={pos}
-                        isFromCompleted={!!lessonProgressMap[lessons[lessonIndex - 1]?.id]}
-                        isToCompleted={isCompleted}
-                      />
-                    )}
-
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.lessonCircle,
-                        {
-                          backgroundColor: isLessonLocked ? Surface.surfaceContainerHighest : lessonColor,
-                          borderColor: isCompleted
-                            ? Brand.success
-                            : isLastVisited
-                            ? Brand.warning
-                            : "transparent",
-                          borderWidth: isCompleted || isLastVisited ? 3 : 0,
-                        },
-                        pressed && !isLessonLocked && { transform: [{ scale: 0.95 }] },
-                      ]}
-                      onPress={() => {
-                        if (isLessonLocked) return;
-                        persistLastLesson(lesson.id);
-                        router.push({
-                          pathname: "/lesson",
-                          params: {
-                            lecture: section.slug,
-                            lessonId: lesson.id,
-                            unitId: unit.id,
-                          },
-                        });
-                      }}
-                    >
-                      <Text style={[styles.lessonCircleIcon, isLessonLocked && styles.lessonCircleIconLocked]}>
-                        {isLessonLocked ? "🔒" : lessonIcon}
-                      </Text>
-                      {isCompleted && (
-                        <View style={styles.completedBadge}>
-                          <Text style={styles.completedBadgeText}>✓</Text>
-                        </View>
-                      )}
-                    </Pressable>
-
-                    <Text
-                      style={[styles.lessonCircleLabel, isLessonLocked && styles.lessonCircleLabelLocked]}
-                      numberOfLines={2}
-                      ellipsizeMode="tail"
-                    >
-                      {lesson.title}
-                    </Text>
-                  </View>
-                );
-              })}
+          <View style={styles.mascotWrap}>
+            <View style={styles.mascotCircle}>
+              <Text style={{ fontSize: 40 }}>🛡️</Text>
+              <View style={styles.mascotBadge}>
+                <Text style={[Typography.labelCaps, { color: Tertiary.onTertiaryContainer, fontSize: 10 }]}>12</Text>
+              </View>
             </View>
           </View>
-        );
-      })}
+        </View>
 
-      {allUnitsCompleted && (
-        <Pressable
-          style={styles.nextSectionBtn}
-          onPress={() => router.replace("/(tabs)")}
-        >
-          <Text style={styles.nextSectionBtnText}>All units complete! Choose your next section</Text>
-        </Pressable>
-      )}
-    </ScrollView>
-  );
-}
+        {/* ── MISSION MAP ──────────────────────────────────────── */}
+        <View style={styles.mapSection}>
+          {units.map((unit: any, unitIndex: number) => {
+            const lessons = unit.lessons ?? [];
 
-function ConnectorLine({
-  from,
-  to,
-  isFromCompleted,
-  isToCompleted,
-}: {
-  from: Point;
-  to: Point;
-  isFromCompleted: boolean;
-  isToCompleted: boolean;
-}) {
-  const isSolid = isFromCompleted && isToCompleted;
-  const startX = from.x + CIRCLE_SIZE / 2;
-  const startY = from.y + CIRCLE_SIZE;
-  const endX = to.x + CIRCLE_SIZE / 2;
-  const endY = to.y;
+            const prevUnitCompleted = unitIndex === 0 || units.slice(0, unitIndex).every((prevUnit: any) => {
+              const prevLessons = prevUnit.lessons ?? [];
+              return prevLessons.length > 0 && prevLessons.every((l: any) => lessonProgressMap[l.id]);
+            });
+            const isUnitLocked = unitIndex > 0 && !prevUnitCompleted;
 
-  const midY = (startY + endY) / 2;
+            const gradientColors = UNIT_GRADIENTS[unitIndex % UNIT_GRADIENTS.length];
 
-  return (
-    <View style={[styles.connectorLine, { left: 0, top: 0 }]}>
-      <View
-        style={[
-          styles.lineVertical,
-          {
-            left: startX - 1,
-            top: Math.min(startY, midY),
-            height: Math.abs(midY - startY),
-            borderLeftColor: isSolid ? Brand.success : "#cbd5e1",
-          } as any,
-        ]}
-      />
-      <View
-        style={[
-          styles.lineHorizontal,
-          {
-            top: midY - 1,
-            left: Math.min(startX, endX),
-            width: Math.abs(endX - startX),
-            borderTopColor: isSolid ? Brand.success : "#cbd5e1",
-          } as any,
-        ]}
-      />
-      <View
-        style={[
-          styles.lineVertical,
-          {
-            left: endX - 1,
-            top: Math.min(midY, endY),
-            height: Math.abs(endY - midY),
-            borderLeftColor: isSolid ? Brand.success : "#cbd5e1",
-          } as any,
-        ]}
-      />
+            return (
+              <View key={unit.id} style={styles.unitBlock}>
+                {/* Unit card with gradient background */}
+                <LinearGradient
+                colors={gradientColors as any}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={[
+                  styles.unitCard,
+                  isUnitLocked && styles.unitCardLocked,
+                  { borderLeftColor: section.color },
+                ]}
+              >
+                  {/* Unit header */}
+                  <View style={styles.unitHeader}>
+                    <Text style={styles.unitIcon}>{unit.icon}</Text>
+                    <View style={styles.unitText}>
+                      <Text style={[Typography.headlineMd, { color: isUnitLocked ? Surface.outline : Surface.onSurface }]}>
+                        {unit.title}
+                      </Text>
+                      <Text style={[Typography.bodyMd, { color: Surface.onSurfaceVariant }]} numberOfLines={1}>
+                        {unit.description}
+                      </Text>
+                    </View>
+                    {isUnitLocked && <Text style={styles.unitLockText}>🔒</Text>}
+                  </View>
+
+                  {/* Vertical dashed connector line */}
+                  {lessons.length > 1 && (
+                    <View style={styles.unitConnectorLine} />
+                  )}
+
+                  {/* Lessons stacked vertically */}
+                  <View style={styles.lessonsList}>
+                    {lessons.map((lesson: any, lessonIndex: number) => {
+                      const isCompleted = !!lessonProgressMap[lesson.id];
+                      const isLastVisited = lastLessonId === lesson.id;
+
+                      const prevLessonCompleted = lessonIndex === 0 || lessons.slice(0, lessonIndex).every((prevLesson: any) => lessonProgressMap[prevLesson.id]);
+                      const isLessonLocked = isUnitLocked || !prevLessonCompleted;
+
+                      const statusLabel = isCompleted ? "COMPLETED" : isLastVisited ? "CURRENT" : isLessonLocked ? "LOCKED" : "";
+                      const statusColor = isCompleted ? Brand.success : isLastVisited ? Primary.primary : Surface.outline;
+
+                      return (
+                        <View key={lesson.id} style={styles.lessonNode}>
+                          {/* Vertical connector between lessons */}
+                          {lessonIndex > 0 && (
+                            <View style={[
+                              styles.lessonConnector,
+                              { borderLeftColor: isCompleted && !!lessonProgressMap[lessons[lessonIndex - 1]?.id] ? Brand.success : Surface.outlineVariant },
+                            ]} />
+                          )}
+
+                          <View style={styles.lessonRow}>
+                            {/* Circle */}
+                            <Pressable
+                              style={({ pressed }) => [
+                                styles.nodeCircle,
+                                {
+                                  backgroundColor: isLessonLocked ? Surface.surfaceContainerHighest : isCompleted ? Brand.success : Primary.primaryContainer,
+                                  borderColor: isLastVisited ? Primary.primaryContainer : isCompleted ? Brand.success : Surface.surfaceContainerLowest,
+                                  borderWidth: isCompleted || isLastVisited ? 4 : 0,
+                                  shadowColor: isLessonLocked ? "transparent" : Primary.primaryContainer,
+                                },
+                                isLastVisited && styles.nodeCircleCurrent,
+                                pressed && !isLessonLocked && { transform: [{ scale: 0.93 }] },
+                              ]}
+                              onPress={() => {
+                                if (isLessonLocked) return;
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                AsyncStorage.setItem(STORAGE_KEYS.lastLesson, lesson.id);
+                                setLastLessonId(lesson.id);
+                                router.push({
+                                  pathname: "/lesson",
+                                  params: {
+                                    lecture: section.slug,
+                                    lessonId: lesson.id,
+                                    unitId: unit.id,
+                                  },
+                                });
+                              }}
+                            >
+                              <Text style={[styles.nodeIcon, { opacity: isLessonLocked ? 0.4 : 1 }]}>
+                                {isLessonLocked ? "🔒" : isCompleted ? "✓" : "🌟"}
+                              </Text>
+
+                              {/* Star badge on completed */}
+                              {isCompleted && (
+                                <View style={styles.starBadge}>
+                                  <Text style={{ fontSize: 14 }}>⭐</Text>
+                                </View>
+                              )}
+
+                              {/* CURRENT tag */}
+                              {isLastVisited && (
+                                <View style={styles.currentTag}>
+                                  <Text style={[Typography.labelCaps, { color: Surface.surfaceContainerLowest, fontSize: 9 }]}>CURRENT</Text>
+                                </View>
+                              )}
+                            </Pressable>
+
+                            {/* Lesson info */}
+                            <View style={styles.lessonInfo}>
+                              {statusLabel !== "" && (
+                                <Text style={[Typography.labelCaps, { color: statusColor }]}>
+                                  {statusLabel}
+                                </Text>
+                              )}
+                              <Text
+                                style={[
+                                  Typography.headlineMd,
+                                  {
+                                    color: isLessonLocked ? Surface.outline : isLastVisited ? Primary.primary : Surface.onSurface,
+                                    marginTop: Spacing.two,
+                                  },
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {lesson.title}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </LinearGradient>
+              </View>
+            );
+          })}
+
+          {/* Mystery reward teaser */}
+          <View style={styles.mysteryCard}>
+            <Text style={{ fontSize: 36, marginBottom: Spacing.two }}>🎁</Text>
+            <Text style={[Typography.headlineMd, { color: Surface.onSurfaceVariant, marginBottom: Spacing.one }]}>
+              Mystery Reward
+            </Text>
+            <Text style={[Typography.bodyMd, { color: Surface.outline, textAlign: "center" }]}>
+              Complete 2 more missions to unlock!
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ── BOTTOM NAV ───────────────────────────────────────── */}
+      <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 4 }]}>
+        {[
+          { icon: "🗺️", label: "Missions", active: true },
+          { icon: "🎓", label: "Class", active: false },
+          { icon: "🏆", label: "Rank", active: false },
+          { icon: "🧒", label: "Avatar", active: false },
+          { icon: "📊", label: "Stats", active: false },
+        ].map((tab) => (
+          <Pressable
+            key={tab.label}
+            style={({ pressed }) => [
+              styles.navTab,
+              tab.active && styles.navTabActive,
+              pressed && { transform: [{ scale: 0.88 }] },
+            ]}
+          >
+            <Text style={{ fontSize: 20 }}>{tab.icon}</Text>
+            <Text
+              style={[
+                Typography.labelCaps,
+                { color: tab.active ? Secondary.onSecondaryContainer : Surface.onSurfaceVariant, marginTop: Spacing.two },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Surface.surface },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText: { fontSize: 16, fontWeight: "700", color: "#7c869c" },
-  errorText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: Brand.danger,
-    marginBottom: Spacing.three,
-  },
-  backBtn: {
-    backgroundColor: Brand.primary,
-    borderRadius: Rounded.DEFAULT,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-  },
-  backText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  scroll: { flex: 1, backgroundColor: Surface.surface },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 0,
-    paddingBottom: Spacing.six,
-  },
-  header: {
-    borderRadius: 0,
-    padding: Spacing.five,
+
+  // Top nav
+  topNav: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
-    marginBottom: Spacing.four,
+    justifyContent: "space-between",
+    paddingHorizontal: Layout.containerMarginMobile,
+    paddingBottom: Spacing.three,
+    backgroundColor: "rgba(248,249,255,0.9)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.3)",
+    shadowColor: Primary.primaryContainer,
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  headerIcon: { fontSize: 48 },
-  headerTitle: { fontSize: 24, fontWeight: "900", color: "#fff" },
-  headerSub: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.9)",
-    textAlign: "center",
+  navLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  avatarRing: {
+    width: 40,
+    height: 40,
+    borderRadius: Rounded.full,
+    backgroundColor: Primary.primaryContainer,
+    borderWidth: 2,
+    borderColor: Primary.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
+  xpChip: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: Rounded.full,
+    backgroundColor: Surface.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: Surface.outlineVariant,
+  },
+
+  scrollContent: { paddingHorizontal: Layout.containerMarginMobile, paddingTop: Spacing.three, gap: Spacing.three },
+
+  // Streak + mascot
+  statsRow: { flexDirection: "row", alignItems: "center", gap: Spacing.four },
+  streakBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: Secondary.secondaryFixed,
+    borderRadius: Rounded.full,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+  },
+  xpBarTrack: {
+    height: 14,
+    backgroundColor: Surface.surfaceContainerHigh,
+    borderRadius: Rounded.full,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Surface.outlineVariant,
+  },
+  xpBarFill: { height: "100%", borderRadius: Rounded.full },
+  mascotWrap: { alignItems: "center" },
+  mascotCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: Rounded.full,
+    backgroundColor: Primary.primaryContainer,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: Primary.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  mascotBadge: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    width: 28,
+    height: 28,
+    borderRadius: Rounded.full,
+    backgroundColor: Tertiary.tertiaryContainer,
+    borderWidth: 2,
+    borderColor: Surface.surfaceContainerLowest,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Map
+  mapSection: { paddingVertical: Spacing.three, gap: Layout.stackLg },
+
+  // Unit block
+  unitBlock: { width: "100%", marginBottom: Layout.stackMd },
   unitCard: {
-    borderRadius: 0,
-    paddingVertical: Spacing.four,
-    paddingHorizontal: 0,
-    marginBottom: Spacing.three,
-    gap: Spacing.three,
-    borderLeftWidth: 0,
-    shadowColor: "transparent",
-    shadowOpacity: 0,
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 0,
-    elevation: 0,
+    borderRadius: Rounded.lg,
+    padding: Spacing.four,
+    overflow: "hidden",
+    borderLeftWidth: 4,
   },
+  unitCardLocked: { opacity: 0.6 },
   unitHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.three,
   },
   unitIcon: { fontSize: 32 },
   unitText: { flex: 1 },
-  unitTitle: { fontSize: 17, fontWeight: "900", color: "#1c2742" },
-  unitTitleLocked: { color: "#9aa3b5" },
-  unitDesc: { fontSize: 13, fontWeight: "600", color: "#5b6478", marginTop: 2 },
   unitLockText: { fontSize: 20 },
-  snakeContainer: {
-    width: "100%",
-    position: "relative",
-    marginTop: Spacing.two,
-    marginBottom: Spacing.four,
-  },
-  snakeItem: {
+
+  // Vertical connector within a unit
+  unitConnectorLine: {
     position: "absolute",
-    width: CIRCLE_SIZE,
+    left: Spacing.four + CIRCLE_SIZE / 2 - 2,
+    top: Spacing.four + CIRCLE_SIZE + Spacing.two,
+    bottom: Spacing.four,
+    width: 4,
+    borderLeftWidth: 4,
+    borderStyle: "dashed",
+    borderColor: Surface.outlineVariant,
+    zIndex: 0,
+  },
+
+  // Lessons list
+  lessonsList: { gap: Spacing.three, zIndex: 10 },
+  lessonNode: { flexDirection: "row", alignItems: "flex-start" },
+  lessonConnector: {
+    position: "absolute",
+    left: Spacing.four + CIRCLE_SIZE / 2 - 2,
+    top: CIRCLE_SIZE + Spacing.two,
+    bottom: -(CIRCLE_SIZE / 2 + Spacing.two),
+    width: 4,
+    borderLeftWidth: 4,
+    borderStyle: "dashed",
+  },
+  lessonRow: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
+    gap: Spacing.three,
+    flex: 1,
   },
-  connectorLine: {
-    position: "absolute",
-    width: SCREEN_WIDTH,
-    height: 160,
-    pointerEvents: "none",
-  },
-  lineVertical: {
-    position: "absolute",
-    width: 2,
-    borderLeftWidth: 2,
-    borderStyle: "solid",
-  },
-  lineHorizontal: {
-    position: "absolute",
-    height: 2,
-    borderTopWidth: 2,
-    borderStyle: "solid",
-  },
-  lessonCircle: {
+  nodeCircle: {
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  nodeCircleCurrent: {
+    shadowColor: Primary.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  nodeIcon: { fontSize: 48, color: Surface.surfaceContainerLowest },
+  starBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: Secondary.secondaryContainer,
+    borderRadius: Rounded.full,
+    padding: Spacing.one,
     shadowColor: "#000",
     shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  lessonCircleIcon: { fontSize: 48, color: "#fff" },
-  lessonCircleIconLocked: { fontSize: 32 },
-  completedBadge: {
+  currentTag: {
     position: "absolute",
-    bottom: 2,
-    right: 2,
-    backgroundColor: Brand.success,
-    borderRadius: CIRCLE_SIZE / 4,
-    width: CIRCLE_SIZE / 3,
-    height: CIRCLE_SIZE / 3,
+    bottom: -10,
+    backgroundColor: Primary.primary,
+    borderRadius: Rounded.full,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+  },
+  lessonInfo: { flex: 1, gap: Spacing.two },
+
+  // Mystery card
+  mysteryCard: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderRadius: Rounded.lg,
+    padding: Spacing.four,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: Surface.outlineVariant,
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: Brand.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+  },
+
+  // Bottom nav
+  bottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "rgba(248,249,255,0.95)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.3)",
+    shadowColor: Brand.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 12,
+    paddingTop: Spacing.two,
+  },
+  navTab: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: Spacing.one,
+    borderRadius: Rounded.md,
   },
-  completedBadgeText: { color: "#fff", fontSize: CIRCLE_SIZE / 5, fontWeight: "900" },
-  lessonCircleLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#1c2742",
-    textAlign: "center",
-    minHeight: 28,
-    maxWidth: CIRCLE_SIZE * 1.8,
+  navTabActive: {
+    backgroundColor: Secondary.secondaryContainer,
+    paddingHorizontal: Spacing.three,
   },
-  lessonCircleLabelLocked: { color: "#9aa3b5" },
-  nextSectionBtn: {
-    backgroundColor: Brand.primary,
+
+  // Back button
+  backBtn: {
+    backgroundColor: Primary.primary,
     borderRadius: Rounded.DEFAULT,
-    paddingVertical: Spacing.four,
-    alignItems: "center",
-    marginTop: Spacing.four,
-  },
-  nextSectionBtnText: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: 16,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
   },
 });
