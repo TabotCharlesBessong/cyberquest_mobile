@@ -7,6 +7,7 @@ import {
   useSubmitLessonProgress,
 } from "./useApiQueries";
 import { playSuccess, playFail } from "@/utils/sounds";
+import { calculateAccuracy, calculateLessonDuration } from "@/lib/lessonStats";
 import type { LessonStep } from "@/data/types";
 
 type ApiLecture = {
@@ -124,6 +125,8 @@ export interface LessonPlayerState {
   step: LessonStep | undefined;
   isLast: boolean;
   progress: number;
+  elapsedTime: number;
+  accuracy: number;
 }
 
 export interface LessonPlayerActions {
@@ -161,9 +164,12 @@ export function useLessonPlayer(
     xpEarned: number;
     newLevel: number;
   } | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [accuracy, setAccuracy] = useState(100);
 
   const enter = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
+  const startTimeRef = useRef<number | null>(null);
 
   const lecture = lectureQuery.data?.data.lecture as ApiLecture | undefined;
   const curriculumLesson = lessonQuery.data?.data.lesson as
@@ -205,6 +211,9 @@ export function useLessonPlayer(
     setFinished(false);
     setCelebrate(false);
     setResult(null);
+    setElapsedTime(0);
+    setAccuracy(100);
+    startTimeRef.current = Date.now();
   }
 
   function chooseOption(index: number) {
@@ -261,6 +270,10 @@ export function useLessonPlayer(
       const quizTotal = quizSteps.length;
       const score =
         quizTotal > 0 ? Math.round((correctCount / quizTotal) * 100) : 100;
+      const acc = calculateAccuracy(correctCount, quizTotal);
+      const elapsed = startTimeRef.current ? calculateLessonDuration(startTimeRef.current) : 0;
+      setElapsedTime(elapsed);
+      setAccuracy(acc);
       const currentLessonId = isCurriculumMode
         ? (curriculumLesson?.id ?? lessonId)
         : (lecture?.lessons[stepIndex]?.id ?? steps[stepIndex]?.id);
@@ -303,5 +316,7 @@ export function useLessonPlayer(
     chooseOption,
     next,
     resetStepState,
+    elapsedTime,
+    accuracy,
   };
 }
