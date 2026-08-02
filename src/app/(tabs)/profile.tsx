@@ -95,7 +95,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <Pressable style={styles.customizeBtn} onPress={() => router.push('/avatar-customizer')}>
+      <Pressable style={styles.customizeBtn} onPress={() => router.push('/(tabs)/avatar-customizer')}>
         <Text style={styles.customizeText}>🎨 Customize Avatar</Text>
       </Pressable>
 
@@ -147,7 +147,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.navRow}>
-        <Pressable style={styles.navBtn} onPress={() => router.push('/leaderboard')}>
+        <Pressable style={styles.navBtn} onPress={() => router.push('/(tabs)/leaderboard')}>
           <Text style={styles.navBtnText}>🏆 Leaderboard</Text>
         </Pressable>
         <Pressable style={styles.navBtn} onPress={() => router.push('/league')}>

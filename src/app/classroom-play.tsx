@@ -41,7 +41,7 @@ export default function ClassroomPlayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const safeBack = useSafeBack('/classroom');
+  const safeBack = useSafeBack('/(tabs)/classroom');
   const user = useCurrentUser();
   const ageGroup = useAgeGroup();
   const recordActivity = useRecordActivity();
