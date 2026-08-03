@@ -1,16 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AuthShell } from '@/components/AuthShell';
 import { Button } from '@/components/Button';
 import { Mascot } from '@/components/Mascot';
 import { FormError, FormInput, FormPasswordInput } from '@/components/FormComponents';
@@ -18,15 +15,13 @@ import { useZodForm } from '@/hooks/useZodForm';
 import { useLogin, useSignup } from '@/hooks/useApiQueries';
 import { useSetPendingEmail, useAuthActions, useCurrentUser } from '@/hooks/useAuth';
 import { loginSchema, signupSchema } from '@/lib/schemas';
-import { useSafeBack } from '@/lib/navigation';
-import { Brand, Spacing } from '@/constants/theme';
+import { Primary, Spacing } from '@/constants/theme';
 
 type Mode = 'signup' | 'login';
 
 export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const insets = useSafeAreaInsets();
   const initialMode = params.mode === 'login' ? 'login' : 'signup';
 
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -39,10 +34,9 @@ export default function AuthScreen() {
   const loginForm = useZodForm(loginSchema, { email: '', password: '' });
 
   const isSignup = mode === 'signup';
-  const safeBack = useSafeBack('/');
   const isLoading = loginMutation.isPending || signupMutation.isPending;
   const setPendingEmail = useSetPendingEmail();
-  const { login: loginAction, signup: signupAction } = useAuthActions();
+  const { login: loginAction } = useAuthActions();
   const user = useCurrentUser();
 
   async function handleSignup(data: { name: string; email: string; password: string; age: number }) {
@@ -82,85 +76,159 @@ export default function AuthScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <AuthShell
+      title="CyberQuest"
+      subtitle="Ready for your next mission, Hero?"
+      mascot={isSignup ? '🦊' : '🦸'}
     >
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + Spacing.four },
-        ]}
-        keyboardShouldPersistTaps="always"
-      >
-        <Pressable style={styles.back} onPress={safeBack}>
-          <Text style={styles.backText}>‹ Back</Text>
+      {isSignup ? (
+        <signupForm.FormProvider>
+          <FormInput
+            label="HERO NAME"
+            name="name"
+            placeholder="Enter your Hero Name"
+            autoCapitalize="words"
+            // @ts-ignore
+            leftIcon={<Text style={styles.inputIcon}>👤</Text>}
+          />
+          <FormInput
+            label="EMAIL"
+            name="email"
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            // @ts-ignore
+            leftIcon={<Text style={styles.inputIcon}>📧</Text>}
+          />
+          <FormInput
+            label="YOUR AGE"
+            name="age"
+            placeholder="6"
+            keyboardType="number-pad"
+            // @ts-ignore
+            leftIcon={<Text style={styles.inputIcon}>📅</Text>}
+          />
+          <FormPasswordInput
+            label="SECRET PASSWORD"
+            name="password"
+            placeholder="Shhh... it's a secret!"
+            // @ts-ignore
+            leftIcon={<Text style={styles.inputIcon}>🔒</Text>}
+          />
+          {globalError && <FormError message={globalError} />}
+          <Button label="Sign Up" variant="hero" fullWidth onPress={onPress} disabled={isLoading} />
+        </signupForm.FormProvider>
+      ) : (
+        <loginForm.FormProvider>
+            <FormInput
+              label="EMAIL"
+              name="email"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              // @ts-ignore
+              leftIcon={<Text style={styles.inputIcon}>📧</Text>}
+            />
+            <FormPasswordInput
+              label="SECRET PASSWORD"
+              name="password"
+              placeholder="Shhh... it's a secret!"
+              // @ts-ignore
+              leftIcon={<Text style={styles.inputIcon}>🔒</Text>}
+            />
+          {globalError && <FormError message={globalError} />}
+          <Button label="Log In" variant="hero" fullWidth onPress={onPress} disabled={isLoading} />
+        </loginForm.FormProvider>
+      )}
+
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>OR CHOOSE PATH</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <View style={styles.socialGrid}>
+        <Pressable style={styles.socialBtn}>
+          <Mascot emoji="🌐" size={20} bounce={false} />
+          <Text style={styles.socialText}>Guest</Text>
         </Pressable>
+      </View>
 
-        <View style={styles.header}>
-          <Mascot emoji={isSignup ? '🦊' : '🦸'} size={84} />
-          <Text style={styles.title}>
-            {isSignup ? 'Create your hero' : 'Welcome back!'}
+      <View style={styles.footer}>
+        <Pressable onPress={switchMode}>
+          <Text style={styles.footerLink}>
+            {isSignup ? 'Already have an account? Log in' : 'New Hero? Create an account'}
           </Text>
-          <Text style={styles.subtitle}>
-            {isSignup
-              ? 'Make an account to start your mission.'
-              : 'Log in to continue your adventure.'}
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          {isSignup ? (
-            <signupForm.FormProvider>
-              <FormInput label="Hero name" name="name" placeholder="e.g. Alex" autoCapitalize="words" />
-              <FormInput label="Email" name="email" placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-              <FormInput label="Your age" name="age" placeholder="6" keyboardType="number-pad" />
-              <FormPasswordInput label="Password" name="password" placeholder="At least 6 characters" />
-              {globalError && <FormError message={globalError} />}
-              <Button label="Sign Up" fullWidth onPress={onPress} disabled={isLoading} />
-            </signupForm.FormProvider>
-          ) : (
-            <loginForm.FormProvider>
-              <FormInput label="Email" name="email" placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-              <FormPasswordInput label="Password" name="password" placeholder="••••••••" />
-              {globalError && <FormError message={globalError} />}
-              <Button label="Log In" fullWidth onPress={onPress} disabled={isLoading} />
-            </loginForm.FormProvider>
-          )}
-
-          <Pressable onPress={switchMode} style={styles.switchRow}>
-            <Text style={styles.switchText}>
-              {isSignup
-                ? 'Already have an account? Log in'
-                : 'New here? Create an account'}
-            </Text>
+        </Pressable>
+        {!isSignup && (
+          <Pressable onPress={() => router.push('/forgot-password')}>
+            <Text style={styles.footerLink}>Forgot your password?</Text>
           </Pressable>
-          {!isSignup && (
-            <Pressable onPress={() => router.push('/forgot-password')} style={styles.switchRow}>
-              <Text style={styles.switchText}>Forgot your password?</Text>
-            </Pressable>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        )}
+      </View>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  scroll: { flex: 1, backgroundColor: Brand.surface },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.six,
+  inputIcon: {
+    fontSize: 20,
+    color: '#727784',
+    marginRight: 12,
   },
-  back: { paddingVertical: Spacing.two },
-  backText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
-  header: { alignItems: 'center', gap: Spacing.two, marginTop: Spacing.four },
-  title: { fontSize: 28, fontWeight: '900', color: '#1c2742' },
-  subtitle: { fontSize: 15, color: '#5b6478', textAlign: 'center' },
-  form: { marginTop: Spacing.five, gap: Spacing.four },
-  switchRow: { alignItems: 'center', marginTop: Spacing.two },
-  switchText: { color: Brand.primary, fontSize: 15, fontWeight: '700' },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginVertical: Spacing.three,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(114,119,132,0.2)',
+  },
+  dividerText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#727784',
+    letterSpacing: 0.05,
+  },
+  socialGrid: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  socialBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.three,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(77,150,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  socialText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#414753',
+    letterSpacing: 0.05,
+  },
+  footer: {
+    marginTop: Spacing.four,
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  footerLink: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+    fontWeight: '700',
+    color: Primary.primary,
+    textAlign: 'center',
+  },
 });
