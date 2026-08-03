@@ -190,7 +190,10 @@ export default function LessonScreen() {
         badgeName={lecture?.badgeName ?? "Star"}
         onContinue={() => {
           resetStepState();
-          safeBack();
+          router.replace({
+            pathname: "/(tabs)/section/[slug]",
+            params: { slug: lectureSlug ?? "" },
+          });
         }}
       />
     </View>
