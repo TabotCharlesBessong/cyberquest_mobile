@@ -1,14 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
+import { Brand, Primary, Spacing } from "@/constants/theme";
+import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
 import { useSafeBack } from "@/lib/navigation";
-import type { LessonStep } from "@/data/types";
-import { Brand, Spacing } from "@/constants/theme";
-import { Pressable, ScrollView, Text, View, Animated } from "react-native";
+import { Animated, Pressable, ScrollView, Text, View , StyleSheet} from "react-native";
 
 export default function LessonScreen() {
   const router = useRouter();
@@ -40,6 +39,8 @@ export default function LessonScreen() {
     chooseOption,
     next,
     resetStepState,
+    shuffledOptions,
+    correctOptionIndex,
   } = useLessonPlayer(lectureSlug, lessonId);
 
   const translateX = shake.interpolate({
@@ -145,6 +146,8 @@ export default function LessonScreen() {
                 step={step}
                 selected={selected}
                 answered={answered}
+                correctOptionIndex={correctOptionIndex}
+                shuffledOptions={shuffledOptions}
                 onChoose={chooseOption}
               />
             )}
@@ -223,26 +226,33 @@ function QuizView({
   step,
   selected,
   answered,
+  correctOptionIndex,
+  shuffledOptions,
   onChoose,
 }: {
   step: Extract<LessonStep, { type: "quiz" }>;
   selected: number | null;
   answered: boolean;
+  correctOptionIndex: number;
+  shuffledOptions: string[];
   onChoose: (i: number) => void;
 }) {
+  const letters = ["A", "B", "C", "D", "E", "F"];
+
   return (
     <View style={styles.quiz}>
       <Text style={styles.quizQuestion}>{step.question}</Text>
       <View style={styles.options}>
-        {step.options.map((opt, i) => {
+        {shuffledOptions.map((opt, i) => {
           const isSelected = selected === i;
-          const isCorrect = i === step.answer;
+          const isCorrect = i === correctOptionIndex;
           let state: "idle" | "selected" | "correct" | "wrong" | "dim" = "idle";
           if (answered) {
             if (isCorrect) state = "correct";
             else if (isSelected) state = "wrong";
             else state = "dim";
           } else if (isSelected) state = "selected";
+
           return (
             <Pressable
               key={i}
@@ -257,36 +267,73 @@ function QuizView({
                 pressed && !answered && styles.optionPressed,
               ]}
             >
-              <Text
-                style={[
-                  styles.optionText,
-                  (state === "correct" || state === "wrong") &&
-                    styles.optionTextLight,
-                ]}
-              >
-                {opt}
-              </Text>
-              {answered && isCorrect ? (
-                <Text style={styles.mark}>✓</Text>
-              ) : null}
-              {answered && isSelected && !isCorrect ? (
-                <Text style={styles.mark}>✕</Text>
-              ) : null}
+              <View style={styles.optionLeft}>
+                <View
+                  style={[
+                    styles.letterCircle,
+                    state === "correct" && styles.letterCircleCorrect,
+                    state === "wrong" && styles.letterCircleWrong,
+                    state === "selected" && styles.letterCircleSelected,
+                    state === "dim" && styles.letterCircleDim,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.letterText,
+                      (state === "correct" || state === "wrong") &&
+                        styles.letterTextLight,
+                      state === "dim" && styles.letterTextDim,
+                    ]}
+                  >
+                    {letters[i]}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.optionText,
+                    (state === "correct" || state === "wrong") &&
+                      styles.optionTextLight,
+                    state === "dim" && styles.optionTextDim,
+                    state === "correct" && styles.optionTextCorrect,
+                  ]}
+                >
+                  {opt}
+                </Text>
+              </View>
+              <View style={styles.optionRight}>
+                {answered && isCorrect ? (
+                  <View style={styles.selectedBadge}>
+                    <Text style={styles.selectedBadgeText}>Selected</Text>
+                  </View>
+                ) : null}
+                {answered && isCorrect ? (
+                  <View style={styles.checkCircle}>
+                    <Text style={styles.checkText}>✓</Text>
+                  </View>
+                ) : null}
+                {answered && isSelected && !isCorrect ? (
+                  <View style={styles.closeCircle}>
+                    <Text style={styles.closeCircleText}>✕</Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           );
         })}
       </View>
 
-      {answered ? (
+      {answered && (
         <View
           style={[
             styles.feedback,
-            selected === step.answer ? styles.feedbackGood : styles.feedbackBad,
+            selected === correctOptionIndex
+              ? styles.feedbackGood
+              : styles.feedbackBad,
           ]}
         >
           <Text style={styles.feedbackText}>{step.explanation}</Text>
         </View>
-      ) : null}
+      )}
     </View>
   );
 }
@@ -430,37 +477,157 @@ const styles = StyleSheet.create({
     color: "#1c2742",
     textAlign: "center",
   },
-  options: { gap: Spacing.two },
+  options: { gap: Spacing.three },
   option: {
     backgroundColor: "#fff",
     borderRadius: 18,
-    padding: Spacing.three,
+    padding: Spacing.four,
     borderWidth: 2,
     borderColor: "#e2e8f4",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: Spacing.three,
+    shadowColor: Brand.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  optionSelected: { borderColor: Brand.primary, backgroundColor: "#eef4ff" },
-  optionCorrect: { backgroundColor: Brand.success, borderColor: Brand.success },
+  optionSelected: { borderColor: Primary.primary, backgroundColor: "#eef4ff" },
+  optionCorrect: {
+    backgroundColor: Brand.success,
+    borderColor: Brand.success,
+    shadowColor: Brand.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+    transform: [{ scale: 1.02 }],
+  },
   optionWrong: { backgroundColor: Brand.danger, borderColor: Brand.danger },
   optionDim: { opacity: 0.5 },
   optionPressed: { transform: [{ scale: 0.98 }] },
-  optionText: { fontSize: 17, fontWeight: "700", color: "#2b3552", flex: 1 },
-  optionTextLight: { color: "#fff" },
-  mark: {
-    fontSize: 22,
-    color: "#fff",
+  optionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    flex: 1,
+  },
+  optionRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  letterCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  letterCircleSelected: {
+    borderColor: Primary.primary,
+    backgroundColor: Primary.primary,
+  },
+  letterCircleCorrect: {
+    borderColor: "#fff",
+    backgroundColor: "#fff",
+  },
+  letterCircleWrong: {
+    borderColor: "#fff",
+    backgroundColor: "#fff",
+  },
+  letterCircleDim: {
+    borderColor: "#e2e8f4",
+    backgroundColor: "#f8f9ff",
+  },
+  letterText: {
+    fontSize: 16,
     fontWeight: "900",
-    marginLeft: Spacing.two,
+    color: "#1c2742",
+  },
+  letterTextLight: {
+    color: Brand.success,
+  },
+  letterTextDim: {
+    color: "#9aa3b5",
+  },
+  optionText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#2b3552",
+    flex: 1,
+  },
+  optionTextLight: {
+    color: "#fff",
+  },
+  optionTextDim: {
+    color: "#9aa3b5",
+  },
+  optionTextCorrect: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+  checkCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkText: {
+    fontSize: 22,
+    color: Brand.success,
+    fontWeight: "900",
+  },
+  closeCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeCircleText: {
+    fontSize: 22,
+    color: Brand.danger,
+    fontWeight: "900",
+  },
+  selectedBadge: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  selectedBadgeText: {
+    fontFamily: "Inter_900Black",
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#fff",
+    letterSpacing: 0.1,
   },
   feedback: {
     borderRadius: 16,
     padding: Spacing.three,
     marginTop: Spacing.two,
   },
-  feedbackGood: { backgroundColor: "#e3f8ef" },
-  feedbackBad: { backgroundColor: "#ffeaea" },
+  feedbackGood: {
+    backgroundColor: "#e3f8ef",
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.2)",
+  },
+  feedbackBad: {
+    backgroundColor: "#ffeaea",
+    borderWidth: 1,
+    borderColor: "rgba(186,26,26,0.2)",
+  },
   feedbackText: {
     fontSize: 15,
     fontWeight: "700",

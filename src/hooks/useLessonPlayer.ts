@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Animated, Easing } from "react-native";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -47,7 +47,7 @@ type CurriculumLesson = {
   order: number;
   ageGroup: string;
   difficulty: number;
-  questions: Array<{
+  questions: {
     id: string;
     question: string;
     options: string[];
@@ -55,7 +55,7 @@ type CurriculumLesson = {
     explanation: string;
     difficulty: number;
     xpReward: number;
-  }>;
+  }[];
 };
 
 function mapApiLessonToStep(lesson: ApiLesson): LessonStep {
@@ -127,6 +127,8 @@ export interface LessonPlayerState {
   progress: number;
   elapsedTime: number;
   accuracy: number;
+  shuffledOptions: string[];
+  correctOptionIndex: number;
 }
 
 export interface LessonPlayerActions {
@@ -139,6 +141,15 @@ export interface LessonPlayerReturn
   extends LessonPlayerState, LessonPlayerActions {
   enter: Animated.Value;
   shake: Animated.Value;
+}
+
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 export function useLessonPlayer(
@@ -187,6 +198,17 @@ export function useLessonPlayer(
   const isLast = stepIndex === total - 1;
   const progress = total > 0 ? (stepIndex + (answered ? 1 : 0)) / total : 0;
 
+  const { shuffledOptions, correctOptionIndex } = useMemo(() => {
+    if (!step || step.type !== "quiz") {
+      return { shuffledOptions: [], correctOptionIndex: 0 };
+    }
+    const quizStep = step as Extract<LessonStep, { type: "quiz" }>;
+    const shuffled = shuffleArray(quizStep.options);
+    const correctIdx = shuffled.indexOf(quizStep.options[quizStep.answer]);
+    return { shuffledOptions: shuffled, correctOptionIndex: correctIdx };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step?.id]);
+
   useEffect(() => {
     if (!lectureSlug && !lessonId) return;
     resetStepState();
@@ -221,7 +243,7 @@ export function useLessonPlayer(
     setSelected(index);
     setAnswered(true);
     const currentStep = steps[stepIndex];
-    const correct = currentStep.type === "quiz" && index === currentStep.answer;
+    const correct = currentStep.type === "quiz" && index === correctOptionIndex;
     if (correct) {
       setCorrectCount((c) => c + 1);
       playSuccess();
@@ -318,5 +340,7 @@ export function useLessonPlayer(
     resetStepState,
     elapsedTime,
     accuracy,
+    shuffledOptions,
+    correctOptionIndex,
   };
 }
