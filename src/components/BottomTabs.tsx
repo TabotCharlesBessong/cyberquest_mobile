@@ -1,23 +1,38 @@
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
 
-import { Brand, Spacing } from '@/constants/theme';
+import { Brand, Rounded, Secondary, Surface, Spacing } from '@/constants/theme';
+
+const TABS = [
+  { label: 'Missions', emoji: '🗺️', route: '/(tabs)' },
+  { label: 'Class', emoji: '🎓', route: '/(tabs)/classroom' },
+  { label: 'Rank', emoji: '🏆', route: '/(tabs)/leaderboard' },
+  { label: 'Avatar', emoji: '🧒', route: '/(tabs)/avatar-customizer' },
+  { label: 'Stats', emoji: '📊', route: '/(tabs)/profile' },
+] as const;
 
 export function BottomTabs() {
   const pathname = usePathname();
   const router = useRouter();
-  const isHome = pathname === '/' || pathname === '/(tabs)';
 
   return (
     <View style={styles.bar}>
-      <Tab active={isHome} emoji="🗺️" label="Learn" onPress={() => router.push('/')} />
-      <Tab active={pathname.includes('shop')} emoji="🛒" label="Shop" onPress={() => router.push('/(tabs)/shop')} />
-      <Tab active={pathname.includes('inventory')} emoji="🎒" label="Gear" onPress={() => router.push('/(tabs)/inventory')} />
-      <Tab active={pathname.includes('classroom')} emoji="🎯" label="Class" onPress={() => router.push('/classroom')} />
-      <Tab active={!isHome && pathname.includes('rewards')} emoji="💎" label="Rewards" onPress={() => router.push('/(tabs)/rewards')} />
-      <Tab active={!isHome && pathname.includes('profile')} emoji="⭐" label="Profile" onPress={() => router.push('/(tabs)/profile')} />
+      {TABS.map((tab) => {
+        const isActive = tab.route === '/(tabs)'
+          ? pathname === '/' || pathname === '/(tabs)' || pathname.startsWith('/(tabs)/section')
+          : pathname.includes(tab.route);
+        return (
+          <Tab
+            key={tab.label}
+            active={isActive}
+            emoji={tab.emoji}
+            label={tab.label}
+            onPress={() => router.push(tab.route)}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -79,29 +94,45 @@ function Tab({
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(248,249,255,0.95)',
     borderTopWidth: 1,
-    borderTopColor: '#eaeef7',
+    borderTopColor: 'rgba(255,255,255,0.3)',
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.three,
+    paddingBottom: Spacing.three + Spacing.half,
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
+    shadowColor: Brand.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 12,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    paddingVertical: Spacing.one,
+    borderRadius: Rounded.md,
   },
   tabIconWrap: {
     width: 46,
     height: 46,
-    borderRadius: 16,
+    borderRadius: Rounded.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eef2fb',
+    backgroundColor: Surface.surfaceContainerLow,
   },
-  tabIconActive: { backgroundColor: Brand.primary },
-  tabEmoji: { fontSize: 24 },
-  tabLabel: { fontSize: 12, fontWeight: '700', color: '#9aa3b5' },
-  tabLabelActive: { color: Brand.primary },
+  tabIconActive: {
+    backgroundColor: Secondary.secondaryContainer,
+  },
+  tabEmoji: { fontSize: 20 },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Surface.onSurfaceVariant,
+    marginTop: Spacing.two,
+  },
+  tabLabelActive: {
+    color: Secondary.onSecondaryContainer,
+  },
 });

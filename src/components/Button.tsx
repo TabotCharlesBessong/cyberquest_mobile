@@ -1,10 +1,10 @@
 import { Pressable, StyleSheet, Text, type PressableProps, type ViewStyle } from 'react-native';
 
-import { Brand } from '@/constants/theme';
+import { Brand, Primary } from '@/constants/theme';
 
 type ButtonProps = PressableProps & {
   label: string;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'hero';
   fullWidth?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
@@ -26,9 +26,11 @@ export function Button({
         variant === 'primary' && styles.primary,
         variant === 'secondary' && styles.secondary,
         variant === 'ghost' && styles.ghost,
+        variant === 'hero' && styles.hero,
         fullWidth && styles.fullWidth,
         disabled && styles.disabled,
-        pressed && !disabled && styles.pressed,
+        pressed && !disabled && variant === 'hero' && styles.heroPressed,
+        pressed && !disabled && variant !== 'hero' && styles.pressed,
         style as ViewStyle,
       ]}
       {...rest}>
@@ -38,6 +40,7 @@ export function Button({
           variant === 'primary' && styles.labelPrimary,
           variant === 'secondary' && styles.labelSecondary,
           variant === 'ghost' && styles.labelGhost,
+          variant === 'hero' && styles.labelHero,
           disabled && styles.labelDisabled,
         ]}>
         {label}
@@ -48,7 +51,7 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 18,
+    borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 28,
     alignItems: 'center',
@@ -74,12 +77,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  hero: {
+    backgroundColor: Primary.primary,
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    shadowColor: Brand.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
   fullWidth: { width: '100%' },
   disabled: { opacity: 0.45 },
   pressed: { transform: [{ translateY: 2 }], shadowOpacity: 0 },
+  heroPressed: { transform: [{ translateY: 4 }], shadowOffset: { width: 0, height: 0 } },
   label: { fontSize: 18, fontWeight: '800' },
   labelPrimary: { color: '#fff' },
   labelSecondary: { color: Brand.primary },
   labelGhost: { color: Brand.primary },
+  labelHero: {
+    color: '#fff',
+    fontFamily: 'SplineSans_700Bold',
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
   labelDisabled: { color: 'rgba(255,255,255,0.8)' },
 });
