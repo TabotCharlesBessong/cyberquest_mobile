@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
@@ -43,7 +43,20 @@ export default function LessonScreen() {
     resetStepState,
     shuffledOptions,
     correctOptionIndex,
+    inRetryPhase,
+    elapsedTime,
+    accuracy,
   } = useLessonPlayer(lectureSlug, lessonId);
+
+  const [liveSeconds, setLiveSeconds] = useState(0);
+
+  useEffect(() => {
+    if (finished) return;
+    const id = setInterval(() => {
+      setLiveSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [finished]);
 
   const translateX = shake.interpolate({
     inputRange: [-1, 0, 1],
@@ -128,8 +141,14 @@ export default function LessonScreen() {
             ]}
           />
         </View>
-        <Text style={styles.stepCount}>
-          {stepIndex + 1}/{total}
+        <View style={styles.stepCountWrap}>
+          {inRetryPhase && <Text style={styles.retryLabel}>Retry</Text>}
+          <Text style={styles.stepCount}>
+            {stepIndex + 1}/{total}
+          </Text>
+        </View>
+        <Text style={styles.timerText}>
+          {Math.floor(liveSeconds / 60)}:{(liveSeconds % 60).toString().padStart(2, "0")}
         </Text>
       </View>
 
@@ -203,6 +222,8 @@ export default function LessonScreen() {
         subtitle={`You earned ${lecture?.badgeName ?? "XP"}!`}
         xp={result?.xpEarned ?? 30}
         badgeName={lecture?.badgeName ?? "Star"}
+        elapsedTime={elapsedTime}
+        accuracy={accuracy}
         onContinue={() => {
           resetStepState();
           router.replace({
@@ -388,6 +409,25 @@ const styles = StyleSheet.create({
     color: "#7c869c",
     minWidth: 36,
     textAlign: "right",
+  },
+  stepCountWrap: {
+    alignItems: "center",
+    gap: 2,
+    minWidth: 36,
+  },
+  retryLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Brand.warning,
+    letterSpacing: 0.5,
+  },
+  timerText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#7c869c",
+    minWidth: 40,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
   },
   scroll: { flex: 1 },
   content: {
