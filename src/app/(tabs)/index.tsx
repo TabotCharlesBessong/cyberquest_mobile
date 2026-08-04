@@ -254,7 +254,7 @@ export default function HomeScreen() {
               onPress={() => {
                 if (!unlocked) return;
                 router.push({
-                  pathname: "/section/[slug]",
+                  pathname: "section/[slug]",
                   params: { slug: m.slug },
                 });
               }}
