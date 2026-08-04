@@ -8,7 +8,8 @@ import {
   View,
 } from "react-native";
 
-import { Brand } from "@/constants/theme";
+import { Brand, Secondary, Surface, Spacing, Rounded, Typography } from "@/constants/theme";
+import { formatTime, calculateAccuracy } from "@/lib/lessonStats";
 
 const CONFETTI = ["🎉", "⭐", "💫", "🎊", "✨", "🌟"];
 
@@ -19,6 +20,8 @@ type CelebrationProps = {
   subtitle?: string;
   xp?: number;
   badgeName?: string;
+  elapsedTime?: number;
+  accuracy?: number;
   onContinue: () => void;
 };
 
@@ -29,6 +32,8 @@ export function Celebration({
   subtitle,
   xp = 30,
   badgeName,
+  elapsedTime = 0,
+  accuracy = 100,
   onContinue,
 }: CelebrationProps) {
   const scale = useRef(new Animated.Value(0)).current;
@@ -70,6 +75,21 @@ export function Celebration({
         <Text style={styles.emoji}>{emoji}</Text>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+
+        <View style={styles.statsBar}>
+          <View style={styles.statItem}>
+            <Text style={styles.statIcon}>⏱</Text>
+            <Text style={styles.statValue}>{formatTime(elapsedTime)}</Text>
+            <Text style={styles.statLabel}>TIME</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statIcon}>🎯</Text>
+            <Text style={styles.statValue}>{accuracy}%</Text>
+            <Text style={styles.statLabel}>ACCURACY</Text>
+          </View>
+        </View>
+
         <View style={styles.chips}>
           <View style={styles.chip}>
             <Text style={styles.chipValue}>+{xp}</Text>
@@ -187,7 +207,40 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
-  chips: { flexDirection: "row", gap: 12, marginTop: 20 },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.four,
+    marginTop: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    backgroundColor: Surface.surfaceContainerLow,
+    borderRadius: Rounded.lg,
+    width: "100%",
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: Spacing.half,
+  },
+  statIcon: { fontSize: 20 },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: Surface.onSurface,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Surface.onSurfaceVariant,
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: Surface.outlineVariant,
+  },
+  chips: { flexDirection: "row", gap: 12, marginTop: Spacing.three },
   chip: {
     backgroundColor: Brand.success,
     borderRadius: 16,
@@ -204,7 +257,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   button: {
-    marginTop: 26,
+    marginTop: Spacing.three,
     backgroundColor: Brand.primary,
     borderRadius: 16,
     paddingVertical: 16,

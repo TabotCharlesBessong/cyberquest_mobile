@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext } from "react";
+import React, { type ReactNode, useState, createContext, useContext } from "react";
 import {
   Controller,
   type Control,
@@ -16,7 +16,7 @@ import {
   FlatList,
 } from "react-native";
 
-import { Brand, Spacing } from "@/constants/theme";
+import { Brand, Primary, Spacing } from "@/constants/theme";
 
 type FormMethods = {
   control: Control<FieldValues>;
@@ -35,7 +35,7 @@ export function FormProvider({
   children,
 }: {
   form: FormMethods;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return <FormContext.Provider value={form}>{children}</FormContext.Provider>;
 }
@@ -55,7 +55,7 @@ export function FormLabel({
   children,
   required,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   required?: boolean;
 }) {
   return (
@@ -98,8 +98,8 @@ type FormInputProps = {
     | "username";
   editable?: boolean;
   required?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
+  leftIcon?: ReactNode;
+  rightIcon?: ReactNode;
   containerStyle?: any;
   rules?: RegisterOptions<FieldValues, Path<FieldValues>>;
 };
@@ -810,27 +810,36 @@ export function FormFileUpload({
 
 const styles = StyleSheet.create({
   field: { gap: Spacing.one },
-  label: { fontSize: 14, fontWeight: "700", color: "#3a4560", marginLeft: 4 },
+  label: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+    fontWeight: "700",
+    color: Primary.primary,
+    letterSpacing: 0.05,
+    marginLeft: 4,
+  },
   required: { color: Brand.danger },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
     paddingHorizontal: 18,
+    minHeight: 64,
   },
   input: {
     flex: 1,
     paddingVertical: 16,
     paddingHorizontal: 18,
-    fontSize: 17,
-    color: "#1c2742",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
+    color: "#181c21",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
   },
   inputWithLeft: { paddingLeft: 12 },
   inputWithRight: { paddingRight: 12 },
@@ -839,17 +848,19 @@ const styles = StyleSheet.create({
   passwordWrap: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
+    minHeight: 64,
   },
   passwordInput: {
     flex: 1,
     paddingVertical: 16,
     paddingHorizontal: 18,
-    fontSize: 17,
-    color: "#1c2742",
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
+    color: "#181c21",
   },
   eyeBtn: { paddingVertical: 16, paddingHorizontal: 18 },
   eyeText: { fontSize: 20 },
@@ -861,34 +872,35 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 12,
     color: "#1c2742",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: Brand.primary,
+    borderColor: Primary.primaryContainer,
     borderBottomWidth: 4,
+    minHeight: 64,
   },
   textArea: {
     paddingVertical: 16,
     paddingHorizontal: 18,
     fontSize: 17,
     color: "#1c2742",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
     minHeight: 100,
   },
   selectTrigger: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
     paddingVertical: 16,
     paddingHorizontal: 18,
-    minHeight: 56,
+    minHeight: 64,
   },
   selectText: { fontSize: 17, color: "#1c2742", flex: 1 },
   selectPlaceholder: { color: "#aab" },
@@ -939,12 +951,12 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
   },
-  radioItemSelected: { borderColor: Brand.primary, backgroundColor: "#eef4ff" },
+  radioItemSelected: { borderColor: Primary.primaryContainer, backgroundColor: "#F4F7FF" },
   radioCircle: {
     width: 22,
     height: 22,
@@ -954,25 +966,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  radioCircleSelected: { borderColor: Brand.primary },
+  radioCircleSelected: { borderColor: Primary.primary },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Brand.primary,
+    backgroundColor: Primary.primary,
   },
   radioLabel: { fontSize: 16, fontWeight: "600", color: "#2b3552" },
-  radioLabelSelected: { color: Brand.primary, fontWeight: "700" },
+  radioLabelSelected: { color: Primary.primary, fontWeight: "700" },
   checkboxRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
   },
   checkboxBox: {
     width: 24,
@@ -982,11 +994,11 @@ const styles = StyleSheet.create({
     borderColor: "#c4ccdb",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "#F4F7FF",
   },
   checkboxBoxChecked: {
-    backgroundColor: Brand.primary,
-    borderColor: Brand.primary,
+    backgroundColor: Primary.primary,
+    borderColor: Primary.primary,
   },
   checkboxMark: { color: "#fff", fontSize: 14, fontWeight: "900" },
   checkboxLabel: { fontSize: 15, fontWeight: "600", color: "#2b3552", flex: 1 },
@@ -994,10 +1006,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: 32,
+    backgroundColor: "#F4F7FF",
     borderWidth: 2,
-    borderColor: "#e2e8f4",
+    borderColor: "transparent",
     borderStyle: "dashed",
     paddingVertical: Spacing.four,
     paddingHorizontal: Spacing.three,

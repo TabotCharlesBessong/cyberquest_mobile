@@ -16,9 +16,7 @@ export default function TabsLayout() {
             animation: 'fade',
           }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="shop" />
-          <Stack.Screen name="inventory" />
-          <Stack.Screen name="rewards" />
+          <Stack.Screen name="section/[slug]" />
           <Stack.Screen name="profile" />
         </Stack>
       </View>
