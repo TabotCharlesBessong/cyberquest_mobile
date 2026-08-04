@@ -129,6 +129,8 @@ export interface LessonPlayerState {
   accuracy: number;
   shuffledOptions: string[];
   correctOptionIndex: number;
+  quizAttempts: number;
+  inRetryPhase: boolean;
 }
 
 export interface LessonPlayerActions {
@@ -177,6 +179,11 @@ export function useLessonPlayer(
   } | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
+  const [quizAttempts, setQuizAttempts] = useState(0);
+  const [retryQueue, setRetryQueue] = useState<LessonStep[]>([]);
+  const [retryIndex, setRetryIndex] = useState(0);
+  const [inRetryPhase, setInRetryPhase] = useState(false);
+  const [lastAnswerCorrect, setLastAnswerCorrect] = useState(false);
 
   const enter = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
@@ -190,13 +197,27 @@ export function useLessonPlayer(
   const error = lectureQuery.error?.message || lessonQuery.error?.message || "";
 
   const isCurriculumMode = !!lessonId && !!curriculumLesson;
-  const steps: LessonStep[] = isCurriculumMode
-    ? mapCurriculumLessonToSteps(curriculumLesson)
-    : (lecture?.lessons.map(mapApiLessonToStep) ?? []);
+  const baseSteps: LessonStep[] = useMemo(
+    () =>
+      isCurriculumMode
+        ? mapCurriculumLessonToSteps(curriculumLesson)
+        : (lecture?.lessons.map(mapApiLessonToStep) ?? []),
+    [isCurriculumMode, curriculumLesson, lecture?.lessons]
+  );
+  const steps = useMemo(() => {
+    if (inRetryPhase) {
+      return [...baseSteps, ...retryQueue];
+    }
+    return baseSteps;
+  }, [baseSteps, inRetryPhase, retryQueue]);
   const total = steps.length;
-  const step: LessonStep | undefined = steps[stepIndex];
-  const isLast = stepIndex === total - 1;
-  const progress = total > 0 ? (stepIndex + (answered ? 1 : 0)) / total : 0;
+  const effectiveIndex = inRetryPhase
+    ? baseSteps.length + retryIndex
+    : stepIndex;
+  const step: LessonStep | undefined = steps[effectiveIndex];
+  const isLast = effectiveIndex === total - 1;
+  const progress =
+    total > 0 ? (effectiveIndex + (answered ? 1 : 0)) / total : 0;
 
   const { shuffledOptions, correctOptionIndex } = useMemo(() => {
     if (!step || step.type !== "quiz") {
@@ -207,7 +228,7 @@ export function useLessonPlayer(
     const correctIdx = shuffled.indexOf(quizStep.options[quizStep.answer]);
     return { shuffledOptions: shuffled, correctOptionIndex: correctIdx };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step?.id]);
+  }, [step?.id, retryIndex]);
 
   useEffect(() => {
     if (!lectureSlug && !lessonId) return;
@@ -223,10 +244,13 @@ export function useLessonPlayer(
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [stepIndex, enter, finished]);
+  }, [effectiveIndex, enter, finished]);
 
   function resetStepState() {
     setStepIndex(0);
+    setRetryIndex(0);
+    setRetryQueue([]);
+    setInRetryPhase(false);
     setSelected(null);
     setAnswered(false);
     setCorrectCount(0);
@@ -235,6 +259,8 @@ export function useLessonPlayer(
     setResult(null);
     setElapsedTime(0);
     setAccuracy(100);
+    setQuizAttempts(0);
+    setLastAnswerCorrect(false);
     startTimeRef.current = Date.now();
   }
 
@@ -242,13 +268,18 @@ export function useLessonPlayer(
     if (answered) return;
     setSelected(index);
     setAnswered(true);
-    const currentStep = steps[stepIndex];
-    const correct = currentStep.type === "quiz" && index === correctOptionIndex;
+    setQuizAttempts((a) => a + 1);
+
+    const currentStep = step;
+    const correct =
+      currentStep?.type === "quiz" && index === correctOptionIndex;
+    setLastAnswerCorrect(correct);
     if (correct) {
       setCorrectCount((c) => c + 1);
       playSuccess();
-    } else if (currentStep.type === "quiz") {
+    } else if (currentStep?.type === "quiz") {
       playFail();
+      setRetryQueue((prev) => [...prev, currentStep]);
       Animated.sequence([
         Animated.timing(shake, {
           toValue: 1,
@@ -275,10 +306,33 @@ export function useLessonPlayer(
   }
 
   function next() {
-    if (stepIndex === total - 1) {
+    if (inRetryPhase) {
+      if (!lastAnswerCorrect) {
+        return;
+      }
+      if (retryIndex >= retryQueue.length - 1) {
+        finishLesson();
+        return;
+      }
+      setRetryIndex((i) => i + 1);
+      setSelected(null);
+      setAnswered(false);
+      setLastAnswerCorrect(false);
+      return;
+    }
+
+    if (stepIndex >= baseSteps.length - 1) {
+      if (retryQueue.length > 0) {
+        setInRetryPhase(true);
+        setRetryIndex(0);
+        setSelected(null);
+        setAnswered(false);
+        return;
+      }
       finishLesson();
       return;
     }
+
     setStepIndex((i) => i + 1);
     setSelected(null);
     setAnswered(false);
@@ -288,22 +342,24 @@ export function useLessonPlayer(
     if (!user) return;
     setSubmitting(true);
     try {
-      const quizSteps = steps.filter((s) => s.type === "quiz");
-      const quizTotal = quizSteps.length;
       const score =
-        quizTotal > 0 ? Math.round((correctCount / quizTotal) * 100) : 100;
-      const acc = calculateAccuracy(correctCount, quizTotal);
-      const elapsed = startTimeRef.current ? calculateLessonDuration(startTimeRef.current) : 0;
+        quizAttempts > 0
+          ? Math.round((correctCount / quizAttempts) * 100)
+          : 100;
+      const acc = calculateAccuracy(correctCount, quizAttempts);
+      const elapsed = startTimeRef.current
+        ? calculateLessonDuration(startTimeRef.current)
+        : 0;
       setElapsedTime(elapsed);
       setAccuracy(acc);
       const currentLessonId = isCurriculumMode
         ? (curriculumLesson?.id ?? lessonId)
-        : (lecture?.lessons[stepIndex]?.id ?? steps[stepIndex]?.id);
+        : (lecture?.lessons[stepIndex]?.id ?? steps[effectiveIndex]?.id);
       const res = await submitProgress.mutateAsync({
         lessonId: currentLessonId ?? "",
         score,
         correctCount,
-        total: quizTotal,
+        total: quizAttempts,
       });
       const data = res.data as { xpEarned: number; newLevel: number };
       setResult({ xpEarned: data.xpEarned, newLevel: data.newLevel });
@@ -342,5 +398,7 @@ export function useLessonPlayer(
     accuracy,
     shuffledOptions,
     correctOptionIndex,
+    quizAttempts,
+    inRetryPhase,
   };
 }
