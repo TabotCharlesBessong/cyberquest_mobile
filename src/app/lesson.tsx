@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect } from "react";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
@@ -7,6 +8,7 @@ import { Brand, Primary, Spacing } from "@/constants/theme";
 import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
 import { useSafeBack } from "@/lib/navigation";
+import { loadSounds, playCelebration } from "@/utils/sounds";
 import { Animated, Pressable, ScrollView, Text, View , StyleSheet} from "react-native";
 
 export default function LessonScreen() {
@@ -55,6 +57,16 @@ export default function LessonScreen() {
     inputRange: [0, 1],
     outputRange: [24, 0],
   });
+
+  useEffect(() => {
+    loadSounds();
+  }, []);
+
+  useEffect(() => {
+    if (celebrate) {
+      playCelebration();
+    }
+  }, [celebrate]);
 
   if (loading) {
     return (
