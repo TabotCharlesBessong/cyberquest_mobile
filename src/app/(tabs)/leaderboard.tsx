@@ -1,13 +1,17 @@
 import { useRouter } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/Button';
 import { useCurrentUser, useAgeGroup } from '@/hooks/useAuth';
 import { useRecordActivity, useLeaderboard } from '@/hooks/useApiQueries';
-import { useSafeBack } from '@/lib/navigation';
-import { Brand, Spacing } from '@/constants/theme';
+import { Primary, Secondary, Tertiary, Brand, Spacing } from '@/constants/theme';
 
 type Scope = 'global' | 'class' | 'school';
 
@@ -17,10 +21,19 @@ const SCOPES: { key: Scope; label: string }[] = [
   { key: 'school', label: 'School' },
 ];
 
+const MOCK_ENTRIES = [
+  { userId: '1', name: 'ShadowByte', avatar: '👑', xp: 3120, level: 15, trend: 'up' as const },
+  { userId: '2', name: 'Zoe.Net', avatar: '🔮', xp: 2840, level: 14, trend: 'up' as const },
+  { userId: '3', name: 'PixelPioneer', avatar: '🎮', xp: 2610, level: 13, trend: 'down' as const },
+  { userId: 'me', name: 'You', avatar: '🦸', xp: 2450, level: 14, trend: 'down' as const, isMe: true },
+  { userId: '5', name: 'DataDiva', avatar: '📊', xp: 2200, level: 12, trend: 'up' as const },
+  { userId: '6', name: 'CodeCracker', avatar: '💻', xp: 2150, level: 11, trend: null },
+  { userId: '7', name: 'LinkLeaper', avatar: '🦘', xp: 1980, level: 10, trend: 'up' as const },
+];
+
 export default function LeaderboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const safeBack = useSafeBack('/(tabs)');
   const user = useCurrentUser();
   const ageGroup = useAgeGroup();
   const recordActivity = useRecordActivity();
@@ -29,7 +42,7 @@ export default function LeaderboardScreen() {
 
   const leaderboardQuery = useLeaderboard(scope);
   const rawEntries = (leaderboardQuery.data?.data as { entries: any[] } | undefined)?.entries ?? [];
-  const entries = rawEntries;
+  const entries = rawEntries.length > 0 ? rawEntries : MOCK_ENTRIES;
 
   useEffect(() => {
     if (!viewedRef.current && user) {
@@ -48,8 +61,8 @@ export default function LeaderboardScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + Spacing.six },
+          styles.content,
+          { paddingTop: insets.top + Spacing.three },
         ]}
       >
         <View style={styles.center}>
@@ -58,148 +71,505 @@ export default function LeaderboardScreen() {
           <Text style={styles.lockedSub}>
             The leaderboard is available for Group B heroes only.
           </Text>
-          <Button label="Go back" variant="secondary" onPress={safeBack} style={styles.backBtn} />
         </View>
       </ScrollView>
     );
   }
 
-  const myRank = entries.find((e: any) => e.userId === user.id);
+  const myRank = entries.find((e: any) => e.userId === 'me' || e.isMe);
+  const topThree = entries.slice(0, 3);
+  const rest = entries.slice(3);
+
+  const podiumOrder = [topThree[1], topThree[0], topThree[2]];
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={[
-        styles.container,
-        { paddingTop: insets.top + Spacing.three },
-      ]}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Leaderboard</Text>
-        <Text style={styles.subtitle}>Top cyber heroes this week</Text>
+    <View style={[styles.flex, { backgroundColor: Brand.surface }]}>
+      <View style={[styles.orbContainer, { paddingTop: insets.top }]}>
+        <View style={[styles.orb, styles.orbPrimary]} />
+        <View style={[styles.orb, styles.orbSecondary]} />
       </View>
 
-      <View style={styles.scopeRow}>
-        {SCOPES.map((s) => (
-          <Pressable
-            key={s.key}
-            style={[styles.scopeBtn, scope === s.key && styles.scopeBtnActive]}
-            onPress={() => setScope(s.key)}
-          >
-            <Text style={[styles.scopeText, scope === s.key && styles.scopeTextActive]}>
-              {s.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {myRank && (
-        <View style={styles.myRankCard}>
-          <Text style={styles.myRankLabel}>Your rank</Text>
-          <Text style={styles.myRankValue}>#{myRank.rank}</Text>
-          <Text style={styles.myRankXp}>{myRank.score} XP</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="always"
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Global Rank</Text>
+            <Text style={styles.subtitle}>Week 12 • Cyber Defense League</Text>
+          </View>
+          <View style={styles.scopeRow}>
+            {SCOPES.map((s) => (
+              <Pressable
+                key={s.key}
+                style={[styles.scopeBtn, scope === s.key && styles.scopeBtnActive]}
+                onPress={() => setScope(s.key)}
+              >
+                <Text style={[styles.scopeText, scope === s.key && styles.scopeTextActive]}>
+                  {s.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
-      )}
 
-      <View style={styles.list}>
-        {entries.length === 0 ? (
-          <Text style={styles.emptyText}>No rankings yet. Keep playing to climb the board!</Text>
-        ) : (
-          entries.slice(0, 50).map((r: any, i: number) => (
-            <View
-              key={r.userId}
-              style={[
-                styles.row,
-                r.userId === user.id && styles.rowMe,
-              ]}
-            >
-              <Text style={[styles.rowRank, i < 3 && styles.rowRankTop]}>#{i + 1}</Text>
-              <Text style={styles.rowEmoji}>{r.avatar}</Text>
-              <Text style={styles.rowName}>{r.name}</Text>
-              <Text style={styles.rowXp}>{r.score} XP</Text>
+        <View style={styles.podium}>
+          {podiumOrder.map((entry, idx) => {
+            const rank = idx === 1 ? 1 : idx === 0 ? 2 : 3;
+            const heights = [140, 180, 120];
+            const isTop = rank === 1;
+            const avatarSize = isTop ? 72 : 56;
+            const borderColors = ['#C1C6D5', Tertiary.tertiaryFixedDim, '#CD7F32'];
+            const badgeColors = ['#727784', Tertiary.tertiaryFixedDim, '#CD7F32'];
+            const xpColors = [Primary.primary, '#3D2D00', Primary.primary];
+
+            return (
+              <View key={entry.userId} style={[styles.podiumCol, isTop && styles.podiumColTop]}>
+                <View style={styles.podiumAvatarWrap}>
+                  <View
+                    style={[
+                      styles.podiumAvatar,
+                      {
+                        width: avatarSize,
+                        height: avatarSize,
+                        borderColor: borderColors[rank - 1],
+                      },
+                    ]}
+                  >
+                    <Text style={styles.podiumAvatarEmoji}>{entry.avatar}</Text>
+                  </View>
+                  <View style={[styles.podiumBadge, { backgroundColor: badgeColors[rank - 1] }]}>
+                    <Text style={styles.podiumBadgeText}>
+                      {rank === 1 ? '1st' : rank === 2 ? '2nd' : '3rd'}
+                    </Text>
+                  </View>
+                  {isTop && <Text style={styles.podiumStar}>⭐</Text>}
+                </View>
+                <View style={[styles.podiumBar, { height: heights[rank - 1] }]}>
+                  <Text style={styles.podiumName} numberOfLines={1}>
+                    {entry.name}
+                  </Text>
+                  <Text style={[styles.podiumXp, { color: xpColors[rank - 1] }]}>
+                    {entry.xp.toLocaleString()} XP
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {myRank && (
+          <View style={styles.myRankCard}>
+            <View style={styles.myRankLeft}>
+              <View style={styles.myRankPos}>
+                <Text style={styles.myRankNum}>#{myRank.rank}</Text>
+                {myRank.trend === 'up' && <Text style={[styles.trendIcon, { color: Brand.success }]}>▲</Text>}
+                {myRank.trend === 'down' && <Text style={[styles.trendIcon, { color: Brand.danger }]}>▼</Text>}
+                {!myRank.trend && <Text style={styles.trendIcon}>—</Text>}
+              </View>
+              <View style={styles.myRankAvatar}>
+                <Text style={styles.myRankAvatarEmoji}>{myRank.avatar}</Text>
+              </View>
+              <View style={styles.myRankInfo}>
+                <View style={styles.myRankNameRow}>
+                  <Text style={styles.myRankName}>You</Text>
+                  <View style={styles.masterBadge}>
+                    <Text style={styles.masterBadgeText}>Master</Text>
+                  </View>
+                </View>
+                <Text style={styles.myRankLevel}>Lv. {myRank.level} Defender</Text>
+              </View>
             </View>
-          ))
+            <View style={styles.myRankRight}>
+              <Text style={styles.myRankXp}>{myRank.xp.toLocaleString()}</Text>
+              <Text style={styles.myRankXpLabel}>XP</Text>
+            </View>
+          </View>
         )}
-      </View>
-    </ScrollView>
+
+        <View style={styles.list}>
+          {rest.length === 0 ? (
+            <Text style={styles.emptyText}>No rankings yet. Keep playing to climb the board!</Text>
+          ) : (
+            rest.map((r: any, i: number) => (
+              <View key={r.userId} style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <Text style={styles.rowRank}>#{i + 4}</Text>
+                  <View style={styles.rowTrend}>
+                    {r.trend === 'up' && <Text style={[styles.trendIcon, { color: Brand.success }]}>▲</Text>}
+                    {r.trend === 'down' && <Text style={[styles.trendIcon, { color: Brand.danger }]}>▼</Text>}
+                    {!r.trend && <Text style={styles.trendIcon}>—</Text>}
+                  </View>
+                </View>
+                <View style={styles.rowAvatar}>
+                  <Text style={styles.rowAvatarEmoji}>{r.avatar}</Text>
+                </View>
+                <View style={styles.rowInfo}>
+                  <Text style={styles.rowName}>{r.name}</Text>
+                  <Text style={styles.rowLevel}>Lv. {r.level} {r.title}</Text>
+                </View>
+                <View style={styles.rowRight}>
+                  <Text style={styles.rowXp}>{r.xp.toLocaleString()}</Text>
+                  <Text style={styles.rowXpLabel}>XP</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: Brand.surface },
-  container: {
+  flex: { flex: 1 },
+  orbContainer: {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+  },
+  orb: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 9999,
+  },
+  orbPrimary: {
+    top: -100,
+    left: -100,
+    backgroundColor: Primary.primaryContainer,
+    opacity: 0.3,
+  },
+  orbSecondary: {
+    bottom: -100,
+    right: -100,
+    backgroundColor: Secondary.secondaryContainer,
+    opacity: 0.3,
+  },
+  scroll: { flex: 1 },
+  content: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.six,
+    gap: Spacing.four,
   },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
-  lockedEmoji: { fontSize: 64 },
-  lockedTitle: { fontSize: 24, fontWeight: '900', color: '#1c2742' },
-  lockedSub: { fontSize: 15, color: '#5b6478', textAlign: 'center', paddingHorizontal: Spacing.four },
-  backBtn: { marginTop: Spacing.three },
-  header: { alignItems: 'center', gap: Spacing.one, marginBottom: Spacing.four },
-  title: { fontSize: 28, fontWeight: '900', color: '#1c2742' },
-  subtitle: { fontSize: 15, color: '#5b6478' },
+  header: {
+    marginTop: Spacing.three,
+    marginBottom: Spacing.two,
+    gap: Spacing.three,
+  },
+  title: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1c2742',
+    letterSpacing: -0.02,
+    lineHeight: 34,
+  },
+  subtitle: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#414753',
+  },
   scopeRow: {
     flexDirection: 'row',
     gap: Spacing.two,
-    marginBottom: Spacing.four,
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(240,244,251,0.8)',
+    borderRadius: 9999,
+    padding: 4,
   },
   scopeBtn: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e2e8f4',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 9999,
   },
   scopeBtnActive: {
-    backgroundColor: Brand.primary,
-    borderColor: Brand.primary,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   scopeText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#7c869c',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#414753',
+    letterSpacing: 0.05,
   },
   scopeTextActive: {
-    color: '#fff',
+    color: Primary.primary,
   },
-  myRankCard: {
-    backgroundColor: Brand.primary,
-    borderRadius: 20,
-    padding: Spacing.four,
-    alignItems: 'center',
+  podium: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    height: 280,
     marginBottom: Spacing.four,
   },
-  myRankLabel: { fontSize: 13, fontWeight: '700', color: '#fff', opacity: 0.9 },
-  myRankValue: { fontSize: 32, fontWeight: '900', color: '#fff' },
-  myRankXp: { fontSize: 14, fontWeight: '800', color: '#fff', opacity: 0.9 },
-  list: { gap: Spacing.two },
+  podiumCol: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  podiumColTop: {
+    transform: [{ scale: 1.05 }],
+  },
+  podiumAvatarWrap: {
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  podiumAvatar: {
+    borderRadius: 9999,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  podiumAvatarEmoji: {
+    fontSize: 28,
+  },
+  podiumBadge: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  podiumBadgeText: {
+    fontFamily: 'Inter_900Black',
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.05,
+  },
+  podiumStar: {
+    fontSize: 20,
+    marginTop: -8,
+  },
+  podiumBar: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.two,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(193,198,213,0.3)',
+    shadowColor: Brand.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  podiumName: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1c2742',
+    letterSpacing: 0.05,
+  },
+  podiumXp: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  myRankCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Primary.primary,
+    borderRadius: 20,
+    padding: Spacing.four,
+    marginBottom: Spacing.four,
+    shadowColor: Primary.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  myRankLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    flex: 1,
+  },
+  myRankPos: {
+    alignItems: 'center',
+    gap: 2,
+    width: 40,
+  },
+  myRankNum: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  trendIcon: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  myRankAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  myRankAvatarEmoji: {
+    fontSize: 24,
+  },
+  myRankInfo: {
+    flex: 1,
+  },
+  myRankNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  myRankName: {
+    fontFamily: 'SplineSans_700Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  masterBadge: {
+    backgroundColor: '#fff',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  masterBadgeText: {
+    fontFamily: 'Inter_900Black',
+    fontSize: 10,
+    fontWeight: '900',
+    color: Primary.primary,
+    letterSpacing: 0.1,
+  },
+  myRankLevel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
+  myRankRight: {
+    alignItems: 'flex-end',
+  },
+  myRankXp: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    lineHeight: 28,
+  },
+  myRankXpLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 0.05,
+  },
+  list: {
+    gap: Spacing.two,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: Spacing.three,
-    borderWidth: 2,
-    borderColor: '#e2e8f4',
+    borderWidth: 1,
+    borderColor: 'rgba(193,198,213,0.3)',
+    shadowColor: Brand.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  rowMe: {
-    borderColor: Brand.primary,
-    backgroundColor: '#f0f4ff',
+  rowLeft: {
+    width: 32,
+    alignItems: 'center',
   },
-  rowRank: { fontSize: 14, fontWeight: '900', color: '#7c869c', width: 32 },
-  rowRankTop: { color: Brand.warning },
-  rowEmoji: { fontSize: 24 },
-  rowName: { flex: 1, fontSize: 16, fontWeight: '800', color: '#1c2742' },
-  rowXp: { fontSize: 14, fontWeight: '900', color: Brand.success },
+  rowRank: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#727784',
+  },
+  rowTrend: {
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendIconSmall: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rowAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F4F7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(193,198,213,0.3)',
+  },
+  rowAvatarEmoji: {
+    fontSize: 20,
+  },
+  rowInfo: {
+    flex: 1,
+  },
+  rowName: {
+    fontFamily: 'SplineSans_700Bold',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1c2742',
+  },
+  rowLevel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#727784',
+    marginTop: 1,
+  },
+  rowRight: {
+    alignItems: 'flex-end',
+  },
+  rowXp: {
+    fontFamily: 'SplineSans_800ExtraBold',
+    fontSize: 16,
+    fontWeight: '800',
+    color: Primary.primary,
+    lineHeight: 20,
+  },
+  rowXpLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#727784',
+    letterSpacing: 0.05,
+  },
   emptyText: {
     textAlign: 'center',
     color: '#9aa3b5',
     fontSize: 14,
     marginTop: Spacing.four,
   },
+  lockedEmoji: { fontSize: 64 },
+  lockedTitle: { fontSize: 24, fontWeight: '900', color: '#1c2742', marginTop: Spacing.three },
+  lockedSub: { fontSize: 15, color: '#5b6478', textAlign: 'center', paddingHorizontal: Spacing.four },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
 });
