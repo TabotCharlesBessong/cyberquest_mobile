@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
+import { HeartRefillModal } from "@/components/HeartRefillModal";
 import { Brand, Primary, Spacing } from "@/constants/theme";
 import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
@@ -46,6 +47,10 @@ export default function LessonScreen() {
     inRetryPhase,
     elapsedTime,
     accuracy,
+    hearts,
+    heartsDepleted,
+    refillHearts,
+    dismissHeartsDepleted,
   } = useLessonPlayer(lectureSlug, lessonId);
 
   const [liveSeconds, setLiveSeconds] = useState(0);
@@ -141,6 +146,9 @@ export default function LessonScreen() {
             ]}
           />
         </View>
+        <View style={styles.heartsRow}>
+          <Text style={styles.heartsText}>❤️ {hearts}</Text>
+        </View>
         <View style={styles.stepCountWrap}>
           {inRetryPhase && <Text style={styles.retryLabel}>Retry</Text>}
           <Text style={styles.stepCount}>
@@ -231,6 +239,12 @@ export default function LessonScreen() {
             params: { slug: lectureSlug ?? "" },
           });
         }}
+      />
+
+      <HeartRefillModal
+        visible={heartsDepleted}
+        onRefill={refillHearts}
+        onDismiss={dismissHeartsDepleted}
       />
     </View>
   );
@@ -414,6 +428,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
     minWidth: 36,
+  },
+  heartsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  heartsText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#7c869c",
   },
   retryLabel: {
     fontSize: 10,

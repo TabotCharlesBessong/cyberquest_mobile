@@ -393,6 +393,87 @@ export function useRecordActivity() {
   });
 }
 
+export function useConsumeHeart() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.gamification.consumeHeart(),
+    onSuccess: (data) => {
+      const result = data.data as { consumed: boolean; hearts: number };
+      if (!result.consumed) return;
+
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.auth.me },
+        (old: any) => {
+          if (!old?.data?.user) return old;
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              user: {
+                ...old.data.user,
+                hearts: result.hearts,
+              },
+            },
+          };
+        },
+      );
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gamification.profile,
+      });
+    },
+  });
+}
+
+export function useRefillHearts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (method: "gems" | "ad" | "rewards") =>
+      api.gamification.refillHearts(method),
+    onSuccess: (data) => {
+      const result = data.data as {
+        hearts: number;
+        gemsSpent?: number;
+        xpEarned?: number;
+        xpSpent?: number;
+        message?: string;
+      };
+
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.auth.me },
+        (old: any) => {
+          if (!old?.data?.user) return old;
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              user: {
+                ...old.data.user,
+                hearts: result.hearts,
+                ...(result.gemsSpent !== undefined
+                  ? { gems: old.data.user.gems - result.gemsSpent }
+                  : {}),
+                ...(result.xpSpent !== undefined
+                  ? { xp: old.data.user.xp - result.xpSpent }
+                  : {}),
+                ...(result.xpEarned !== undefined
+                  ? { xp: old.data.user.xp + result.xpEarned }
+                  : {}),
+              },
+            },
+          };
+        },
+      );
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gamification.profile,
+      });
+    },
+  });
+}
+
 export function useLeaderboard(scope: string = "global") {
   return useQuery({
     queryKey: ["leaderboard", scope],

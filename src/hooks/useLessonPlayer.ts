@@ -5,6 +5,8 @@ import {
   useLectureBySlug,
   useCurriculumLesson,
   useSubmitLessonProgress,
+  useConsumeHeart, 
+  useRefillHearts
 } from "./useApiQueries";
 import { playSuccess, playFail } from "@/utils/sounds";
 import { calculateAccuracy, calculateLessonDuration } from "@/lib/lessonStats";
@@ -131,12 +133,16 @@ export interface LessonPlayerState {
   correctOptionIndex: number;
   quizAttempts: number;
   inRetryPhase: boolean;
+  hearts: number;
+  heartsDepleted: boolean;
 }
 
 export interface LessonPlayerActions {
   chooseOption: (index: number) => void;
   next: () => void;
   resetStepState: () => void;
+  refillHearts: (method: "gems" | "ad" | "rewards") => void;
+  dismissHeartsDepleted: () => void;
 }
 
 export interface LessonPlayerReturn
@@ -165,6 +171,8 @@ export function useLessonPlayer(
   );
   const lessonQuery = useCurriculumLesson(lessonId ?? "");
   const submitProgress = useSubmitLessonProgress();
+  const consumeHeartMutation = useConsumeHeart();
+  const refillHeartsMutation = useRefillHearts();
 
   const [stepIndex, setStepIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -184,6 +192,8 @@ export function useLessonPlayer(
   const [retryIndex, setRetryIndex] = useState(0);
   const [inRetryPhase, setInRetryPhase] = useState(false);
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState(false);
+  const [hearts, setHearts] = useState(user?.hearts ?? 5);
+  const [heartsDepleted, setHeartsDepleted] = useState(false);
 
   const enter = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
@@ -261,6 +271,8 @@ export function useLessonPlayer(
     setAccuracy(100);
     setQuizAttempts(0);
     setLastAnswerCorrect(false);
+    setHeartsDepleted(false);
+    setHearts(user?.hearts ?? 5);
     startTimeRef.current = Date.now();
   }
 
@@ -280,6 +292,14 @@ export function useLessonPlayer(
     } else if (currentStep?.type === "quiz") {
       playFail();
       setRetryQueue((prev) => [...prev, currentStep]);
+      consumeHeartMutation.mutate();
+      setHearts((h) => {
+        const next = Math.max(0, h - 1);
+        if (next === 0) {
+          setHeartsDepleted(true);
+        }
+        return next;
+      });
       Animated.sequence([
         Animated.timing(shake, {
           toValue: 1,
@@ -372,6 +392,20 @@ export function useLessonPlayer(
     }
   }
 
+  function refillHearts(method: "gems" | "ad" | "rewards") {
+    refillHeartsMutation.mutate(method, {
+      onSuccess: (data) => {
+        const result = data.data as { hearts: number };
+        setHearts(result.hearts);
+        setHeartsDepleted(false);
+      },
+    });
+  }
+
+  function dismissHeartsDepleted() {
+    setHeartsDepleted(false);
+  }
+
   return {
     lecture,
     loading,
@@ -400,5 +434,9 @@ export function useLessonPlayer(
     correctOptionIndex,
     quizAttempts,
     inRetryPhase,
+    hearts,
+    heartsDepleted,
+    refillHearts,
+    dismissHeartsDepleted,
   };
 }

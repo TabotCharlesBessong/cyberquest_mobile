@@ -246,6 +246,27 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ action }),
       }),
+    consumeHeart: () =>
+      request<{
+        success: boolean;
+        data: { consumed: boolean; hearts: number };
+      }>("/api/gamification/hearts/consume", {
+        method: "POST",
+      }),
+    refillHearts: (method: "gems" | "ad" | "rewards") =>
+      request<{
+        success: boolean;
+        data: {
+          hearts: number;
+          gemsSpent?: number;
+          xpEarned?: number;
+          xpSpent?: number;
+          message?: string;
+        };
+      }>("/api/gamification/hearts/refill", {
+        method: "POST",
+        body: JSON.stringify({ method }),
+      }),
   },
   leaderboard: {
     get: (scope: string) =>
