@@ -178,6 +178,15 @@ export function useSubmitLessonProgress() {
       };
       const updatedModule = result.moduleProgress;
 
+      if (!updatedModule?.lectureId) {
+        if (__DEV__) {
+          trace("useSubmitLessonProgress missing moduleProgress", { data });
+        }
+        queryClient.invalidateQueries({ queryKey: queryKeys.progress.me });
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+        return;
+      }
+
       if (__DEV__) {
         trace("useSubmitLessonProgress success", {
           lectureId: updatedModule.lectureId,
@@ -197,8 +206,8 @@ export function useSubmitLessonProgress() {
           user: state.user
             ? {
                 ...state.user,
-                xp: state.user.xp + result.xpEarned,
-                level: result.newLevel,
+                xp: state.user.xp + (result.xpEarned ?? 0),
+                level: result.newLevel ?? state.user.level,
               }
             : state.user,
           modules,
@@ -418,6 +427,12 @@ export function useConsumeHeart() {
         },
       );
 
+      useAuthStore.setState((state) => ({
+        user: state.user
+          ? { ...state.user, hearts: result.hearts }
+          : state.user,
+      }));
+
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
       queryClient.invalidateQueries({
         queryKey: queryKeys.gamification.profile,
@@ -429,7 +444,7 @@ export function useConsumeHeart() {
 export function useRefillHearts() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (method: "gems" | "ad" | "rewards") =>
+    mutationFn: (method: "gems" | "ad") =>
       api.gamification.refillHearts(method),
     onSuccess: (data) => {
       const result = data.data as {
@@ -465,6 +480,25 @@ export function useRefillHearts() {
           };
         },
       );
+
+      useAuthStore.setState((state) => {
+        if (!state.user) return state;
+        return {
+          user: {
+            ...state.user,
+            hearts: result.hearts,
+            ...(result.gemsSpent !== undefined
+              ? { gems: state.user.gems - result.gemsSpent }
+              : {}),
+            ...(result.xpSpent !== undefined
+              ? { xp: state.user.xp - result.xpSpent }
+              : {}),
+            ...(result.xpEarned !== undefined
+              ? { xp: state.user.xp + result.xpEarned }
+              : {}),
+          },
+        };
+      });
 
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
       queryClient.invalidateQueries({

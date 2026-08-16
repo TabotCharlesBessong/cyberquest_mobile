@@ -43,7 +43,7 @@ export default function ProfileScreen() {
 
   async function handleLogout() {
     await logout();
-    router.replace('/');
+    router.replace('/onboarding');
   }
 
   if (isLoading) {

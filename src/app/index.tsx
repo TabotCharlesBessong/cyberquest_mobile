@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,17 +10,19 @@ import { Brand, Spacing } from "@/constants/theme";
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const isAuthenticated = useIsAuthenticated();
 
   useEffect(() => {
+    if (pathname !== "/") return;
     if (isAuthenticated && user?.onboarded) {
       router.replace("/(tabs)");
     } else if (isAuthenticated && user && !user.onboarded) {
       router.replace("/onboarding");
     }
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user, router, pathname]);
 
   return (
     <ScrollView

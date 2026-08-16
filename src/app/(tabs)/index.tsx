@@ -9,13 +9,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProgressBar } from "@/components/ProgressBar";
 import { QuestBanner } from "@/components/QuestBanner";
 import { StatsCard } from "@/components/StatsCard";
+import { HeartRefillModal } from "@/components/HeartRefillModal";
 import { useHomeData } from "@/hooks/useHomeData";
-import { useRecordActivity, useActiveEvent } from "@/hooks/useApiQueries";
+import { useRecordActivity, useActiveEvent, useRefillHearts } from "@/hooks/useApiQueries";
 import { Brand, Spacing } from "@/constants/theme";
 import { api } from "@/lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,6 +28,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const recordActivity = useRecordActivity();
+  const refillHearts = useRefillHearts();
   const dailyLoginRef = useRef(false);
   const eventQuery = useActiveEvent();
   const activeEvent = eventQuery.data?.data as
@@ -40,6 +43,7 @@ export default function HomeScreen() {
     | null
     | undefined;
   const [lastLesson, setLastLesson] = useState<{ sectionSlug: string; lessonId: string; unitId: string } | null>(null);
+  const [showHeartRefill, setShowHeartRefill] = useState(false);
 
   const {
     user,
@@ -149,29 +153,62 @@ export default function HomeScreen() {
       }
     >
       <View style={styles.topBar}>
-        <View style={styles.heroId}>
+        <Pressable
+          onPress={() => router.push('/(tabs)/profile')}
+          style={({ pressed }) => [
+            styles.heroId,
+            Platform.OS === 'web' && { cursor: 'pointer' },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
           <Text style={styles.avatar}>{user?.avatar}</Text>
           <View>
             <Text style={styles.hi}>Hi {user?.name}!</Text>
             <Text style={styles.level}>Level {user?.level ?? 1}</Text>
           </View>
-        </View>
-        <View style={styles.streak}>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/(tabs)/leaderboard')}
+          style={({ pressed }) => [
+            styles.streak,
+            Platform.OS === 'web' && { cursor: 'pointer' },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
           <Text style={styles.streakEmoji}>🔥</Text>
           <Text style={styles.streakNum}>{user?.streak ?? 0}</Text>
-        </View>
+        </Pressable>
       </View>
 
       <View style={styles.statsRow}>
-        <StatsCard emoji="⭐" value={`${xp}`} label="XP" />
-        <StatsCard emoji="❤️" value={`${user?.hearts ?? 0}`} label="Hearts" />
+        <StatsCard emoji="⭐" value={`${xp}`} label="XP" onPress={() => router.push('/(tabs)/profile')} />
+        <StatsCard
+          emoji="❤️"
+          value={`${user?.hearts ?? 0}`}
+          label="Hearts"
+          onPress={() => setShowHeartRefill(true)}
+        />
         <StatsCard
           emoji="💎"
           value={`${user?.gems ?? 0}`}
           label="Gems"
           accent
+          onPress={() => router.push('/(tabs)/shop')}
         />
       </View>
+
+      <HeartRefillModal
+        visible={showHeartRefill}
+        hearts={user?.hearts ?? 0}
+        onRefill={(method) => {
+          refillHearts.mutate(method, {
+            onSuccess: () => {
+              setShowHeartRefill(false);
+            },
+          });
+        }}
+        onDismiss={() => setShowHeartRefill(false)}
+      />
 
       <View style={styles.xpCard}>
         <View style={styles.xpRow}>

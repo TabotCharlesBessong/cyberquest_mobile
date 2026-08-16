@@ -1,6 +1,8 @@
 import { View } from 'react-native';
 import { Text } from 'react-native';
 import { StyleSheet } from 'react-native';
+import { Pressable } from 'react-native';
+import { Platform } from 'react-native';
 import { Brand, Spacing } from '@/constants/theme';
 
 type StatsCardProps = {
@@ -8,16 +10,37 @@ type StatsCardProps = {
   value: string | number;
   label: string;
   accent?: boolean;
+  onPress?: () => void;
 };
 
-export function StatsCard({ emoji, value, label, accent }: StatsCardProps) {
-  return (
+export function StatsCard({ emoji, value, label, accent, onPress }: StatsCardProps) {
+  const content = (
     <View style={[styles.card, accent && styles.accentCard]}>
       <Text style={styles.emoji}>{emoji}</Text>
       <Text style={[styles.value, accent && styles.accentValue]}>{value}</Text>
       <Text style={styles.label}>{label}</Text>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.card,
+          accent && styles.accentCard,
+          pressed && { opacity: 0.7 },
+          Platform.OS === 'web' && { cursor: 'pointer' },
+        ]}
+      >
+        <Text style={styles.emoji}>{emoji}</Text>
+        <Text style={[styles.value, accent && styles.accentValue]}>{value}</Text>
+        <Text style={styles.label}>{label}</Text>
+      </Pressable>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({

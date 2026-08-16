@@ -234,15 +234,17 @@ export default function LessonScreen() {
         accuracy={accuracy}
         onContinue={() => {
           resetStepState();
-          router.replace({
-            pathname: "/(tabs)/section/[slug]",
-            params: { slug: lectureSlug ?? "" },
-          });
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)");
+          }
         }}
       />
 
       <HeartRefillModal
         visible={heartsDepleted}
+        hearts={hearts}
         onRefill={refillHearts}
         onDismiss={dismissHeartsDepleted}
       />

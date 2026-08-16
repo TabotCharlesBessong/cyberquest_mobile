@@ -4,18 +4,27 @@ import { Brand, Spacing } from "@/constants/theme";
 
 type HeartRefillModalProps = {
   visible: boolean;
-  onRefill: (method: "gems" | "ad" | "rewards") => void;
+  hearts: number;
+  onRefill: (method: "gems" | "ad") => void;
   onDismiss: () => void;
 };
 
+const GEM_COST_PER_HEART = 10;
+const MAX_HEARTS = 5;
+
 export function HeartRefillModal({
   visible,
+  hearts,
   onRefill,
   onDismiss,
 }: HeartRefillModalProps) {
   const [loading, setLoading] = useState<string | null>(null);
 
-  async function handleRefill(method: "gems" | "ad" | "rewards") {
+  const missingHearts = Math.max(0, MAX_HEARTS - hearts);
+  const gemCost = missingHearts * GEM_COST_PER_HEART;
+  const isHeartsFull = hearts >= MAX_HEARTS;
+
+  async function handleRefill(method: "gems" | "ad") {
     setLoading(method);
     try {
       onRefill(method);
@@ -34,58 +43,55 @@ export function HeartRefillModal({
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.emoji}>❤️</Text>
-          <Text style={styles.title}>Out of Hearts!</Text>
+          <Text style={styles.title}>
+            {isHeartsFull ? "Hearts Full!" : "Need More Hearts?"}
+          </Text>
           <Text style={styles.subtitle}>
-            You have no hearts left. Choose an option to refill and continue
-            your mission.
+            {isHeartsFull
+              ? "You already have full hearts. Keep playing!"
+              : `You have ${hearts}/${MAX_HEARTS} hearts. Choose an option to refill and continue your mission.`}
           </Text>
 
           <Pressable
-            onPress={() => handleRefill("ad")}
-            disabled={loading !== null}
-            style={({ pressed }) => [
-              styles.option,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={styles.optionEmoji}>📺</Text>
-            <View style={styles.optionBody}>
-              <Text style={styles.optionTitle}>Watch Video Ad</Text>
-              <Text style={styles.optionDesc}>+1 Heart · +5 XP · Free</Text>
-            </View>
-            <Text style={styles.optionArrow}>›</Text>
-          </Pressable>
-
-          <Pressable
             onPress={() => handleRefill("gems")}
-            disabled={loading !== null}
+            disabled={loading !== null || isHeartsFull}
             style={({ pressed }) => [
               styles.option,
-              pressed && { opacity: 0.85 },
+              pressed && !isHeartsFull && { opacity: 0.85 },
+              isHeartsFull && styles.optionDisabled,
             ]}
           >
             <Text style={styles.optionEmoji}>💎</Text>
             <View style={styles.optionBody}>
-              <Text style={styles.optionTitle}>Spend 10 Gems</Text>
-              <Text style={styles.optionDesc}>+5 Hearts</Text>
+              <Text style={[styles.optionTitle, isHeartsFull && styles.optionTextDisabled]}>
+                {isHeartsFull ? "Hearts Full" : `Spend ${gemCost} Gems`}
+              </Text>
+              <Text style={[styles.optionDesc, isHeartsFull && styles.optionTextDisabled]}>
+                {isHeartsFull ? "Max hearts reached" : `Refill ${missingHearts} heart${missingHearts !== 1 ? "s" : ""} → ${MAX_HEARTS}`}
+              </Text>
             </View>
-            <Text style={styles.optionArrow}>›</Text>
+            {!isHeartsFull && <Text style={styles.optionArrow}>›</Text>}
           </Pressable>
 
           <Pressable
-            onPress={() => handleRefill("rewards")}
-            disabled={loading !== null}
+            onPress={() => handleRefill("ad")}
+            disabled={loading !== null || isHeartsFull}
             style={({ pressed }) => [
               styles.option,
-              pressed && { opacity: 0.85 },
+              pressed && !isHeartsFull && { opacity: 0.85 },
+              isHeartsFull && styles.optionDisabled,
             ]}
           >
-            <Text style={styles.optionEmoji}>⭐</Text>
+            <Text style={styles.optionEmoji}>📺</Text>
             <View style={styles.optionBody}>
-              <Text style={styles.optionTitle}>Spend 50 XP</Text>
-              <Text style={styles.optionDesc}>+3 Hearts</Text>
+              <Text style={[styles.optionTitle, isHeartsFull && styles.optionTextDisabled]}>
+                {isHeartsFull ? "Hearts Full" : "Watch Video Ad"}
+              </Text>
+              <Text style={[styles.optionDesc, isHeartsFull && styles.optionTextDisabled]}>
+                {isHeartsFull ? "Max hearts reached" : "+1 Heart · +5 XP · Free"}
+              </Text>
             </View>
-            <Text style={styles.optionArrow}>›</Text>
+            {!isHeartsFull && <Text style={styles.optionArrow}>›</Text>}
           </Pressable>
 
           <Pressable
@@ -142,6 +148,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#e2e8f4",
   },
+  optionDisabled: {
+    opacity: 0.6,
+  },
   optionEmoji: { fontSize: 28 },
   optionBody: { flex: 1 },
   optionTitle: {
@@ -154,6 +163,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#7c869c",
     marginTop: 2,
+  },
+  optionTextDisabled: {
+    color: "#c1c6d5",
   },
   optionArrow: {
     fontSize: 24,

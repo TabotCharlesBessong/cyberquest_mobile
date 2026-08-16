@@ -82,10 +82,7 @@ export default function OnboardingScreen() {
   }
 
   function skip() {
-    if (step === 'welcome') setStep('avatar');
-    else if (step === 'avatar') setStep('age');
-    else if (step === 'age') setStep('ready');
-    else finish();
+    finish();
   }
 
   function finish() {

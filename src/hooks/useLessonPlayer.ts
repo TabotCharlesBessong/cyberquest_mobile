@@ -141,7 +141,7 @@ export interface LessonPlayerActions {
   chooseOption: (index: number) => void;
   next: () => void;
   resetStepState: () => void;
-  refillHearts: (method: "gems" | "ad" | "rewards") => void;
+  refillHearts: (method: "gems" | "ad") => void;
   dismissHeartsDepleted: () => void;
 }
 
@@ -392,8 +392,8 @@ export function useLessonPlayer(
     }
   }
 
-  function refillHearts(method: "gems" | "ad" | "rewards") {
-    refillHeartsMutation.mutate(method, {
+  function refillHearts(method: "gems" | "ad") {
+    refillHeartsMutation.mutate(method as "gems" | "ad", {
       onSuccess: (data) => {
         const result = data.data as { hearts: number };
         setHearts(result.hearts);
