@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Brand, Spacing, Avatars } from '@/constants/theme';
 import { useCurrentUser } from '@/hooks/useAuth';
-import { useEquipItem, useRecordActivity } from '@/hooks/useApiQueries';
+import { useEquipItem, useRecordActivity, useUpdateProfile } from '@/hooks/useApiQueries';
 import { AvatarPreview } from '@/components/AvatarPreview';
 import { ShopItemCard } from '@/components/ShopItemCard';
 import { useSafeBack } from '@/lib/navigation';
@@ -17,6 +17,7 @@ export default function AvatarCustomizerScreen() {
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const equipMutation = useEquipItem();
+  const updateProfileMutation = useUpdateProfile();
   const recordActivity = useRecordActivity();
   const safeBack = useSafeBack('/(tabs)/profile');
   const [selected, setSelected] = useState(user?.avatar || Avatars[0]);
@@ -29,14 +30,14 @@ export default function AvatarCustomizerScreen() {
     );
   }
 
-  async function handleEquip(emoji: string) {
-    setSelected(emoji);
-  }
-
   async function handleApply() {
-    await equipMutation.mutateAsync(selected);
-    recordActivity.mutate('avatar_change');
-    safeBack();
+    try {
+      await updateProfileMutation.mutateAsync({ avatar: selected });
+      recordActivity.mutate('avatar_change');
+      safeBack();
+    } catch (e) {
+      console.warn('Failed to update avatar', e);
+    }
   }
 
   return (

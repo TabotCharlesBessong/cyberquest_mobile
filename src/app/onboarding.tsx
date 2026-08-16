@@ -16,6 +16,7 @@ import { Avatars, Brand, Primary, Secondary, Spacing } from '@/constants/theme';
 import { useZodForm } from '@/hooks/useZodForm';
 import { onboardingSchema } from '@/lib/schemas';
 import { useCurrentUser, useSetUser } from '@/hooks/useAuth';
+import { useUpdateProfile } from '@/hooks/useApiQueries';
 
 const STEPS = ['welcome', 'avatar', 'age', 'ready'] as const;
 type Step = (typeof STEPS)[number];
@@ -51,6 +52,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const setUser = useSetUser();
+  const updateProfile = useUpdateProfile();
   const [step, setStep] = useState<Step>('welcome');
   const [avatar, setAvatar] = useState(user?.avatar ?? '🦊');
 
@@ -94,7 +96,14 @@ export default function OnboardingScreen() {
       onboarded: true,
     };
     setUser(updated as any);
-    router.replace('/(tabs)');
+    updateProfile.mutate(
+      { avatar: data.avatar, ageGroup: data.ageGroup },
+      {
+        onSuccess: () => {
+          router.replace('/(tabs)');
+        },
+      },
+    );
   }
 
   const selectedAgeGroup = form.watch('ageGroup');

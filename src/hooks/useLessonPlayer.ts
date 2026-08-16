@@ -291,7 +291,9 @@ export function useLessonPlayer(
       playSuccess();
     } else if (currentStep?.type === "quiz") {
       playFail();
-      setRetryQueue((prev) => [...prev, currentStep]);
+      if (!inRetryPhase) {
+        setRetryQueue((prev) => [...prev, currentStep]);
+      }
       consumeHeartMutation.mutate();
       setHearts((h) => {
         const next = Math.max(0, h - 1);
@@ -328,6 +330,9 @@ export function useLessonPlayer(
   function next() {
     if (inRetryPhase) {
       if (!lastAnswerCorrect) {
+        setSelected(null);
+        setAnswered(false);
+        setLastAnswerCorrect(false);
         return;
       }
       if (retryIndex >= retryQueue.length - 1) {

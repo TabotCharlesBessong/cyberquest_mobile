@@ -375,6 +375,17 @@ export function useEquipItem() {
   });
 }
 
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name?: string; age?: number; avatar?: string; ageGroup?: "A" | "B" }) =>
+      api.auth.updateProfile(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+    },
+  });
+}
+
 export function useRecordActivity() {
   const queryClient = useQueryClient();
   return useMutation({

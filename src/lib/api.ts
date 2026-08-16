@@ -142,6 +142,11 @@ export const api = {
       ),
     getMe: () =>
       request<{ success: boolean; data: { user: unknown } }>("/api/auth/me"),
+    updateProfile: (body: { name?: string; age?: number; avatar?: string; ageGroup?: "A" | "B" }) =>
+      request<{ success: boolean; data: { user: unknown } }>("/api/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
   },
   lectures: {
     getAll: (ageGroup: string) =>
