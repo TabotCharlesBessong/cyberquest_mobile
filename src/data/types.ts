@@ -25,6 +25,7 @@ export type StoryStep = {
   icon?: string;
   mascot?: string;
   speech?: string;
+  missionBriefing?: string;
 };
 
 export type QuizStep = {
@@ -37,7 +38,36 @@ export type QuizStep = {
   icon?: string;
 };
 
-export type LessonStep = StoryStep | QuizStep;
+export type MatchingStep = {
+  id: string;
+  type: 'matching';
+  question: string;
+  pairs: { left: string; right: string }[];
+  explanation: string;
+  icon?: string;
+};
+
+export type SentenceBuilderStep = {
+  id: string;
+  type: 'sentence_builder';
+  question: string;
+  sentenceParts: string[];
+  correctSentence: string;
+  explanation: string;
+  icon?: string;
+};
+
+export type InvestigationStep = {
+  id: string;
+  type: 'investigation';
+  question: string;
+  investigationSteps: string[];
+  correctOrder: number[];
+  explanation: string;
+  icon?: string;
+};
+
+export type LessonStep = StoryStep | QuizStep | MatchingStep | SentenceBuilderStep | InvestigationStep;
 
 export type ModuleData = {
   id: string;

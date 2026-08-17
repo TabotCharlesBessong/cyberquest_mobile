@@ -38,6 +38,7 @@ type ApiLesson = {
   mascot: string;
   speech: string;
   order: number;
+  missionBriefing?: string;
 };
 
 type CurriculumLesson = {
@@ -46,14 +47,21 @@ type CurriculumLesson = {
   type: "story" | "quiz" | "mini-game" | "challenge";
   title: string;
   notes: string;
+  missionBriefing?: string;
   order: number;
   ageGroup: string;
   difficulty: number;
   questions: {
     id: string;
+    type: string;
     question: string;
-    options: string[];
-    correctIndex: number;
+    options?: string[];
+    correctIndex?: number;
+    pairs?: { left: string; right: string }[];
+    sentenceParts?: string[];
+    correctSentence?: string;
+    investigationSteps?: string[];
+    correctOrder?: number[];
     explanation: string;
     difficulty: number;
     xpReward: number;
@@ -85,6 +93,19 @@ function mapApiLessonToStep(lesson: ApiLesson): LessonStep {
 
 function mapCurriculumLessonToSteps(lesson: CurriculumLesson): LessonStep[] {
   const steps: LessonStep[] = [];
+
+  if (lesson.missionBriefing) {
+    steps.push({
+      id: `${lesson.stepId}-mission`,
+      type: "story",
+      title: "🎯 Mission Briefing",
+      text: lesson.missionBriefing,
+      icon: "📋",
+      mascot: "🦸",
+      speech: "Here's your mission briefing! Listen carefully, hero.",
+    });
+  }
+
   if (lesson.notes) {
     steps.push({
       id: `${lesson.stepId}-notes`,
@@ -96,16 +117,48 @@ function mapCurriculumLessonToSteps(lesson: CurriculumLesson): LessonStep[] {
       speech: "Read this carefully before answering the questions!",
     });
   }
+
   for (const q of lesson.questions) {
-    steps.push({
-      id: q.id,
-      type: "quiz",
-      question: q.question,
-      options: q.options,
-      answer: q.correctIndex,
-      explanation: q.explanation,
-      icon: "❓",
-    });
+    if (q.type === "matching") {
+      steps.push({
+        id: q.id,
+        type: "matching",
+        question: q.question,
+        pairs: q.pairs || [],
+        explanation: q.explanation,
+        icon: "🔗",
+      });
+    } else if (q.type === "sentence_builder") {
+      steps.push({
+        id: q.id,
+        type: "sentence_builder",
+        question: q.question,
+        sentenceParts: q.sentenceParts || [],
+        correctSentence: q.correctSentence || "",
+        explanation: q.explanation,
+        icon: "🧩",
+      });
+    } else if (q.type === "investigation") {
+      steps.push({
+        id: q.id,
+        type: "investigation",
+        question: q.question,
+        investigationSteps: q.investigationSteps || [],
+        correctOrder: q.correctOrder || [],
+        explanation: q.explanation,
+        icon: "🔍",
+      });
+    } else {
+      steps.push({
+        id: q.id,
+        type: "quiz",
+        question: q.question,
+        options: q.options || [],
+        answer: q.correctIndex ?? 0,
+        explanation: q.explanation,
+        icon: "❓",
+      });
+    }
   }
   return steps;
 }
@@ -116,6 +169,9 @@ export interface LessonPlayerState {
   error: string;
   stepIndex: number;
   selected: number | null;
+  selectedPairs: Record<number, number>;
+  selectedSentence: string[];
+  selectedOrder: number[];
   answered: boolean;
   correctCount: number;
   finished: boolean;
@@ -139,6 +195,9 @@ export interface LessonPlayerState {
 
 export interface LessonPlayerActions {
   chooseOption: (index: number) => void;
+  selectPair: (leftIndex: number, rightIndex: number) => void;
+  toggleSentenceWord: (word: string) => void;
+  selectInvestigationStep: (stepIndex: number) => void;
   next: () => void;
   resetStepState: () => void;
   refillHearts: (method: "gems" | "ad") => void;
@@ -176,6 +235,9 @@ export function useLessonPlayer(
 
   const [stepIndex, setStepIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [selectedPairs, setSelectedPairs] = useState<Record<number, number>>({});
+  const [selectedSentence, setSelectedSentence] = useState<string[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<number[]>([]);
   const [answered, setAnswered] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -262,6 +324,9 @@ export function useLessonPlayer(
     setRetryQueue([]);
     setInRetryPhase(false);
     setSelected(null);
+    setSelectedPairs({});
+    setSelectedSentence([]);
+    setSelectedOrder([]);
     setAnswered(false);
     setCorrectCount(0);
     setFinished(false);
@@ -283,15 +348,38 @@ export function useLessonPlayer(
     setQuizAttempts((a) => a + 1);
 
     const currentStep = step;
-    const correct =
-      currentStep?.type === "quiz" && index === correctOptionIndex;
+    let correct = false;
+
+    if (!currentStep) {
+      correct = false;
+    } else if (currentStep.type === "quiz") {
+      correct = index === correctOptionIndex;
+    } else if (currentStep.type === "matching") {
+      const matchingStep = currentStep as Extract<LessonStep, { type: "matching" }>;
+      const totalPairs = matchingStep.pairs?.length || 0;
+      const matchedCorrectly = Object.entries(selectedPairs).filter(
+        ([leftIdx, rightIdx]) => {
+          const pair = matchingStep.pairs?.[Number(leftIdx)];
+          return pair && matchingStep.pairs?.findIndex(p => p.right === pair.right) === Number(rightIdx);
+        }
+      ).length;
+      correct = matchedCorrectly === totalPairs && Object.keys(selectedPairs).length === totalPairs;
+    } else if (currentStep.type === "sentence_builder") {
+      const sentenceStep = currentStep as Extract<LessonStep, { type: "sentence_builder" }>;
+      correct = selectedSentence.join(" ") === sentenceStep.correctSentence;
+    } else if (currentStep.type === "investigation") {
+      const invStep = currentStep as Extract<LessonStep, { type: "investigation" }>;
+      correct = selectedOrder.length === (invStep.investigationSteps?.length || 0) &&
+        JSON.stringify(selectedOrder) === JSON.stringify(invStep.correctOrder);
+    }
+
     setLastAnswerCorrect(correct);
     if (correct) {
       setCorrectCount((c) => c + 1);
       playSuccess();
-    } else if (currentStep?.type === "quiz") {
+    } else {
       playFail();
-      if (!inRetryPhase) {
+      if (!inRetryPhase && currentStep) {
         setRetryQueue((prev) => [...prev, currentStep]);
       }
       consumeHeartMutation.mutate();
@@ -411,12 +499,40 @@ export function useLessonPlayer(
     setHeartsDepleted(false);
   }
 
+  function selectPair(leftIndex: number, rightIndex: number) {
+    if (answered) return;
+    setSelectedPairs((prev) => ({ ...prev, [leftIndex]: rightIndex }));
+  }
+
+  function toggleSentenceWord(word: string) {
+    if (answered) return;
+    setSelectedSentence((prev) => {
+      if (prev.includes(word)) {
+        return prev.filter((w) => w !== word);
+      }
+      return [...prev, word];
+    });
+  }
+
+  function selectInvestigationStep(stepIndex: number) {
+    if (answered) return;
+    setSelectedOrder((prev) => {
+      if (prev.includes(stepIndex)) {
+        return prev.filter((i) => i !== stepIndex);
+      }
+      return [...prev, stepIndex];
+    });
+  }
+
   return {
     lecture,
     loading,
     error,
     stepIndex,
     selected,
+    selectedPairs,
+    selectedSentence,
+    selectedOrder,
     answered,
     correctCount,
     finished,
@@ -431,6 +547,9 @@ export function useLessonPlayer(
     enter,
     shake,
     chooseOption,
+    selectPair,
+    toggleSentenceWord,
+    selectInvestigationStep,
     next,
     resetStepState,
     elapsedTime,

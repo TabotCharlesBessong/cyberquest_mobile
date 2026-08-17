@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
 import { HeartRefillModal } from "@/components/HeartRefillModal";
-import { Brand, Primary, Spacing } from "@/constants/theme";
+import { Brand, Primary, Spacing, Surface } from "@/constants/theme";
 import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
 import { useSafeBack } from "@/lib/navigation";
@@ -28,6 +28,9 @@ export default function LessonScreen() {
     error,
     stepIndex,
     selected,
+    selectedPairs,
+    selectedSentence,
+    selectedOrder,
     answered,
     finished,
     celebrate,
@@ -40,6 +43,9 @@ export default function LessonScreen() {
     enter,
     shake,
     chooseOption,
+    selectPair,
+    toggleSentenceWord,
+    selectInvestigationStep,
     next,
     resetStepState,
     shuffledOptions,
@@ -54,6 +60,7 @@ export default function LessonScreen() {
   } = useLessonPlayer(lectureSlug, lessonId);
 
   const [liveSeconds, setLiveSeconds] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     if (finished) return;
@@ -62,6 +69,28 @@ export default function LessonScreen() {
     }, 1000);
     return () => clearInterval(id);
   }, [finished]);
+
+  async function speakText(text: string) {
+    if (isSpeaking) return;
+    setIsSpeaking(true);
+    try {
+      const Speech = (await import("expo-speech")).default;
+      Speech.speak(text, {
+        language: "en",
+        pitch: 1.0,
+        rate: 0.9,
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      });
+    } catch {
+      setIsSpeaking(false);
+    }
+  }
+
+  function stopSpeaking() {
+    import("expo-speech").then(({ default: Speech }) => Speech.stop?.());
+    setIsSpeaking(false);
+  }
 
   const translateX = shake.interpolate({
     inputRange: [-1, 0, 1],
@@ -180,6 +209,27 @@ export default function LessonScreen() {
           >
             {step.type === "story" ? (
               <StoryView step={step} />
+            ) : step.type === "matching" ? (
+              <MatchingView
+                step={step}
+                selectedPairs={selectedPairs}
+                onSelectPair={selectPair}
+                answered={answered}
+              />
+            ) : step.type === "sentence_builder" ? (
+              <SentenceBuilderView
+                step={step}
+                selectedSentence={selectedSentence}
+                onToggleWord={toggleSentenceWord}
+                answered={answered}
+              />
+            ) : step.type === "investigation" ? (
+              <InvestigationView
+                step={step}
+                selectedOrder={selectedOrder}
+                onSelectStep={selectInvestigationStep}
+                answered={answered}
+              />
             ) : (
               <QuizView
                 step={step}
@@ -212,7 +262,7 @@ export default function LessonScreen() {
               {isLast ? "Finish 🎉" : "Continue"}
             </Text>
           </Pressable>
-        ) : step.type === "story" ? (
+        ) : step.type === "story" || step.type === "matching" || step.type === "sentence_builder" || step.type === "investigation" ? (
           <Pressable style={styles.continueBtn} onPress={next}>
             <Text style={styles.continueText}>Continue</Text>
           </Pressable>
@@ -383,6 +433,153 @@ function QuizView({
           <Text style={styles.feedbackText}>{step.explanation}</Text>
         </View>
       )}
+    </View>
+  );
+}
+
+function MatchingView({
+  step,
+  selectedPairs,
+  onSelectPair,
+  answered,
+}: {
+  step: Extract<LessonStep, { type: "matching" }>;
+  selectedPairs: Record<number, number>;
+  onSelectPair: (left: number, right: number) => void;
+  answered: boolean;
+}) {
+  const leftItems = step.pairs?.map((p) => p.left) ?? [];
+  const rightItems = step.pairs?.map((p) => p.right) ?? [];
+
+  return (
+    <View style={styles.matchingContainer}>
+      <Text style={styles.matchingQuestion}>{step.question}</Text>
+      <View style={styles.matchingGrid}>
+        <View style={styles.matchingColumn}>
+          {leftItems.map((item, i) => (
+            <Pressable
+              key={i}
+              onPress={() => !answered && onSelectPair(i, -1)}
+              style={[
+                styles.matchChip,
+                selectedPairs[i] !== undefined && styles.matchChipSelected,
+              ]}
+            >
+              <Text style={styles.matchChipText}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.matchingColumn}>
+          {rightItems.map((item, j) => (
+            <Pressable
+              key={j}
+              onPress={() => {
+                const selectedLeft = Object.keys(selectedPairs).find(
+                  (k) => selectedPairs[Number(k)] === j
+                );
+                if (selectedLeft !== undefined) {
+                  onSelectPair(Number(selectedLeft), -1);
+                }
+              }}
+              style={[
+                styles.matchChip,
+                Object.values(selectedPairs).includes(j) &&
+                  styles.matchChipMatched,
+              ]}
+            >
+              <Text style={styles.matchChipText}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SentenceBuilderView({
+  step,
+  selectedSentence,
+  onToggleWord,
+  answered,
+}: {
+  step: Extract<LessonStep, { type: "sentence_builder" }>;
+  selectedSentence: string[];
+  onToggleWord: (word: string) => void;
+  answered: boolean;
+}) {
+  return (
+    <View style={styles.sentenceContainer}>
+      <Text style={styles.sentenceQuestion}>{step.question}</Text>
+      <View style={styles.sentenceBuildArea}>
+        {selectedSentence.length === 0 ? (
+          <Text style={styles.sentencePlaceholder}>Tap words below to build your sentence...</Text>
+        ) : (
+          selectedSentence.map((word, i) => (
+            <Pressable
+              key={i}
+              onPress={() => onToggleWord(word)}
+              style={styles.sentenceWord}
+            >
+              <Text style={styles.sentenceWordText}>{word}</Text>
+            </Pressable>
+          ))
+        )}
+      </View>
+      <View style={styles.sentenceOptions}>
+        {step.sentenceParts
+          .filter((w) => !selectedSentence.includes(w))
+          .map((word, i) => (
+            <Pressable
+              key={i}
+              onPress={() => onToggleWord(word)}
+              style={styles.sentenceOption}
+            >
+              <Text style={styles.sentenceOptionText}>{word}</Text>
+            </Pressable>
+          ))}
+      </View>
+    </View>
+  );
+}
+
+function InvestigationView({
+  step,
+  selectedOrder,
+  onSelectStep,
+  answered,
+}: {
+  step: Extract<LessonStep, { type: "investigation" }>;
+  selectedOrder: number[];
+  onSelectStep: (index: number) => void;
+  answered: boolean;
+}) {
+  return (
+    <View style={styles.investigationContainer}>
+      <Text style={styles.investigationQuestion}>{step.question}</Text>
+      <Text style={styles.investigationHint}>Tap the steps in the correct order</Text>
+      <View style={styles.investigationList}>
+        {step.investigationSteps?.map((item, i) => {
+          const order = selectedOrder.indexOf(i);
+          const isSelected = order >= 0;
+          return (
+            <Pressable
+              key={i}
+              onPress={() => onSelectStep(i)}
+              style={[
+                styles.investigationItem,
+                isSelected && styles.investigationItemSelected,
+              ]}
+            >
+              <View style={styles.investigationOrder}>
+                <Text style={styles.investigationOrderText}>
+                  {isSelected ? order + 1 : "•"}
+                </Text>
+              </View>
+              <Text style={styles.investigationText}>{item}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -711,5 +908,141 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#2b3552",
     textAlign: "center",
+  },
+  matchingContainer: { gap: Spacing.four, marginTop: Spacing.three },
+  matchingQuestion: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1c2742",
+    textAlign: "center",
+  },
+  matchingGrid: {
+    flexDirection: "row",
+    gap: Spacing.four,
+  },
+  matchingColumn: {
+    flex: 1,
+    gap: Spacing.two,
+  },
+  matchChip: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+    alignItems: "center",
+  },
+  matchChipSelected: {
+    borderColor: Primary.primary,
+    backgroundColor: "#eef4ff",
+  },
+  matchChipMatched: {
+    borderColor: Brand.success,
+    backgroundColor: "#e3f8ef",
+  },
+  matchChipText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1c2742",
+    textAlign: "center",
+  },
+  sentenceContainer: { gap: Spacing.four, marginTop: Spacing.three },
+  sentenceQuestion: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1c2742",
+    textAlign: "center",
+  },
+  sentenceBuildArea: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+    minHeight: 60,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+  },
+  sentencePlaceholder: {
+    color: "#9aa3b5",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  sentenceWord: {
+    backgroundColor: Primary.primaryContainer,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  sentenceWordText: {
+    color: Primary.primary,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  sentenceOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  sentenceOption: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+  },
+  sentenceOptionText: {
+    color: "#1c2742",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  investigationContainer: { gap: Spacing.four, marginTop: Spacing.three },
+  investigationQuestion: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1c2742",
+    textAlign: "center",
+  },
+  investigationHint: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#7c869c",
+    textAlign: "center",
+  },
+  investigationList: { gap: Spacing.two },
+  investigationItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: Spacing.three,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+  },
+  investigationItemSelected: {
+    borderColor: Primary.primary,
+    backgroundColor: "#eef4ff",
+  },
+  investigationOrder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Surface.surfaceContainerHigh,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  investigationOrderText: {
+    fontWeight: "900",
+    fontSize: 14,
+    color: Primary.primary,
+  },
+  investigationText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1c2742",
   },
 });
