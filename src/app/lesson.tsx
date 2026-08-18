@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import { Celebration } from "@/components/Celebration";
 import { Mascot } from "@/components/Mascot";
@@ -10,7 +10,7 @@ import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
 import { useSafeBack } from "@/lib/navigation";
 import { loadSounds, playCelebration } from "@/utils/sounds";
-import { Animated, Pressable, ScrollView, Text, View , StyleSheet} from "react-native";
+import { Animated, PanResponder, Pressable, ScrollView, Text, View , StyleSheet} from "react-native";
 
 export default function LessonScreen() {
   const router = useRouter();
@@ -46,6 +46,7 @@ export default function LessonScreen() {
     selectPair,
     toggleSentenceWord,
     selectInvestigationStep,
+    moveInvestigationStep,
     next,
     resetStepState,
     shuffledOptions,
@@ -74,21 +75,35 @@ export default function LessonScreen() {
     if (isSpeaking) return;
     setIsSpeaking(true);
     try {
-      const Speech = (await import("expo-speech")).default;
-      Speech.speak(text, {
-        language: "en",
-        pitch: 1.0,
-        rate: 0.9,
-        onDone: () => setIsSpeaking(false),
-        onError: () => setIsSpeaking(false),
-      });
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
+        utterance.pitch = 1.0;
+        utterance.rate = 0.9;
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        const Speech = (await import("expo-speech")).default;
+        Speech.speak(text, {
+          language: "en",
+          pitch: 1.0,
+          rate: 0.9,
+          onDone: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false),
+        });
+      }
     } catch {
       setIsSpeaking(false);
     }
   }
 
   function stopSpeaking() {
-    import("expo-speech").then(({ default: Speech }) => Speech.stop?.());
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    } else {
+      import("expo-speech").then(({ default: Speech }) => Speech.stop?.());
+    }
     setIsSpeaking(false);
   }
 
@@ -208,7 +223,13 @@ export default function LessonScreen() {
             ]}
           >
             {step.type === "story" ? (
-              <StoryView step={step} />
+              <StoryView
+                step={step}
+                isSpeaking={isSpeaking}
+                onSpeak={() =>
+                  isSpeaking ? stopSpeaking() : speakText(step.text)
+                }
+              />
             ) : step.type === "matching" ? (
               <MatchingView
                 step={step}
@@ -228,6 +249,7 @@ export default function LessonScreen() {
                 step={step}
                 selectedOrder={selectedOrder}
                 onSelectStep={selectInvestigationStep}
+                onMoveStep={moveInvestigationStep}
                 answered={answered}
               />
             ) : (
@@ -302,7 +324,15 @@ export default function LessonScreen() {
   );
 }
 
-function StoryView({ step }: { step: Extract<LessonStep, { type: "story" }> }) {
+function StoryView({
+  step,
+  isSpeaking,
+  onSpeak,
+}: {
+  step: Extract<LessonStep, { type: "story" }>;
+  isSpeaking?: boolean;
+  onSpeak?: () => void;
+}) {
   return (
     <View style={styles.story}>
       <View style={styles.storyIcon}>
@@ -310,7 +340,13 @@ function StoryView({ step }: { step: Extract<LessonStep, { type: "story" }> }) {
       </View>
       <Text style={styles.storyTitle}>{step.title}</Text>
       <Text style={styles.storyText}>{step.text}</Text>
-
+      {onSpeak && (
+        <Pressable onPress={onSpeak} style={styles.speakBtn}>
+          <Text style={styles.speakBtnText}>
+            {isSpeaking ? "🔊 Listening..." : "🔊 Listen"}
+          </Text>
+        </Pressable>
+      )}
       <View style={styles.speech}>
         <Mascot emoji={step.mascot ?? "🦸"} size={56} bounce={false} />
         <View style={styles.bubble}>
@@ -451,47 +487,80 @@ function MatchingView({
   const leftItems = step.pairs?.map((p) => p.left) ?? [];
   const rightItems = step.pairs?.map((p) => p.right) ?? [];
 
+  const selectedLeft = Object.keys(selectedPairs).find(
+    (k) => selectedPairs[Number(k)] === -1
+  );
+
   return (
     <View style={styles.matchingContainer}>
       <Text style={styles.matchingQuestion}>{step.question}</Text>
       <View style={styles.matchingGrid}>
         <View style={styles.matchingColumn}>
-          {leftItems.map((item, i) => (
-            <Pressable
-              key={i}
-              onPress={() => !answered && onSelectPair(i, -1)}
-              style={[
-                styles.matchChip,
-                selectedPairs[i] !== undefined && styles.matchChipSelected,
-              ]}
-            >
-              <Text style={styles.matchChipText}>{item}</Text>
-            </Pressable>
-          ))}
+          {leftItems.map((item, i) => {
+            const isSelected = selectedPairs[i] !== undefined;
+            const isPaired = selectedPairs[i] !== -1;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => !answered && onSelectPair(i, -1)}
+                style={[
+                  styles.matchChip,
+                  isSelected && styles.matchChipSelected,
+                  answered && isPaired && styles.matchChipCorrect,
+                  answered && isSelected && !isPaired && styles.matchChipWrong,
+                ]}
+              >
+                <Text style={styles.matchChipText}>{item}</Text>
+              </Pressable>
+            );
+          })}
         </View>
         <View style={styles.matchingColumn}>
-          {rightItems.map((item, j) => (
-            <Pressable
-              key={j}
-              onPress={() => {
-                const selectedLeft = Object.keys(selectedPairs).find(
-                  (k) => selectedPairs[Number(k)] === j
-                );
-                if (selectedLeft !== undefined) {
-                  onSelectPair(Number(selectedLeft), -1);
-                }
-              }}
-              style={[
-                styles.matchChip,
-                Object.values(selectedPairs).includes(j) &&
-                  styles.matchChipMatched,
-              ]}
-            >
-              <Text style={styles.matchChipText}>{item}</Text>
-            </Pressable>
-          ))}
+          {rightItems.map((item, j) => {
+            const pairedLeft = Object.keys(selectedPairs).find(
+              (k) => selectedPairs[Number(k)] === j
+            );
+            const isMatched = pairedLeft !== undefined;
+            const isPairedCorrectly =
+              isMatched &&
+              step.pairs?.[Number(pairedLeft)]?.right === item;
+            return (
+              <Pressable
+                key={j}
+                onPress={() => {
+                  if (answered) return;
+                  if (selectedLeft !== undefined) {
+                    onSelectPair(Number(selectedLeft), j);
+                  } else if (isMatched) {
+                    onSelectPair(Number(pairedLeft), -1);
+                  }
+                }}
+                style={[
+                  styles.matchChip,
+                  isMatched && styles.matchChipMatched,
+                  answered && isPairedCorrectly && styles.matchChipCorrect,
+                  answered && isMatched && !isPairedCorrectly && styles.matchChipWrong,
+                ]}
+              >
+                <Text style={styles.matchChipText}>{item}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
+      {answered && (
+        <View
+          style={[
+            styles.feedback,
+            Object.keys(selectedPairs).length === leftItems.length &&
+            Object.values(selectedPairs).every((r, i) => step.pairs?.[i]?.right === rightItems[r])
+              ? styles.feedbackGood
+              : styles.feedbackBad,
+          ]}
+        >
+          <Text style={styles.feedbackText}>{step.explanation}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -546,41 +615,148 @@ function InvestigationView({
   step,
   selectedOrder,
   onSelectStep,
+  onMoveStep,
   answered,
 }: {
   step: Extract<LessonStep, { type: "investigation" }>;
   selectedOrder: number[];
   onSelectStep: (index: number) => void;
+  onMoveStep: (index: number, direction: -1 | 1) => void;
   answered: boolean;
 }) {
+  const items = step.investigationSteps ?? [];
+
   return (
     <View style={styles.investigationContainer}>
       <Text style={styles.investigationQuestion}>{step.question}</Text>
-      <Text style={styles.investigationHint}>Tap the steps in the correct order</Text>
+      <Text style={styles.investigationHint}>
+        {answered
+          ? "Check your order below"
+          : "Tap to select steps, then drag up or down to reorder"}
+      </Text>
       <View style={styles.investigationList}>
-        {step.investigationSteps?.map((item, i) => {
-          const order = selectedOrder.indexOf(i);
-          const isSelected = order >= 0;
+        {selectedOrder.map((itemIndex, order) => {
+          const item = items[itemIndex];
+          const isCorrect = answered && order === step.correctOrder?.indexOf(itemIndex);
+          const isWrong = answered && order !== step.correctOrder?.indexOf(itemIndex);
+
           return (
-            <Pressable
-              key={i}
-              onPress={() => onSelectStep(i)}
-              style={[
-                styles.investigationItem,
-                isSelected && styles.investigationItemSelected,
-              ]}
-            >
-              <View style={styles.investigationOrder}>
-                <Text style={styles.investigationOrderText}>
-                  {isSelected ? order + 1 : "•"}
-                </Text>
-              </View>
-              <Text style={styles.investigationText}>{item}</Text>
-            </Pressable>
+            <InvestigationDraggableItem
+              key={itemIndex}
+              item={item}
+              order={order}
+              isCorrect={isCorrect}
+              isWrong={isWrong}
+              answered={answered}
+              onMoveUp={() => onMoveStep(itemIndex, -1)}
+              onMoveDown={() => onMoveStep(itemIndex, 1)}
+              isFirst={order === 0}
+              isLast={order === selectedOrder.length - 1}
+            />
           );
         })}
       </View>
+      {answered && (
+        <View
+          style={[
+            styles.feedback,
+            JSON.stringify(selectedOrder) === JSON.stringify(step.correctOrder)
+              ? styles.feedbackGood
+              : styles.feedbackBad,
+          ]}
+        >
+          <Text style={styles.feedbackText}>{step.explanation}</Text>
+        </View>
+      )}
     </View>
+  );
+}
+
+function InvestigationDraggableItem({
+  item,
+  order,
+  isCorrect,
+  isWrong,
+  answered,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+}: {
+  item: string;
+  order: number;
+  isCorrect: boolean;
+  isWrong: boolean;
+  answered: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 8,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy < -15 && !isFirst) {
+          onMoveUp();
+        } else if (gestureState.dy > 15 && !isLast) {
+          onMoveDown();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      {...pan.panHandlers}
+      style={[
+        styles.investigationItemRow,
+        isCorrect && styles.investigationItemCorrect,
+        isWrong && styles.investigationItemWrong,
+      ]}
+    >
+      <View style={styles.investigationOrder}>
+        <Text style={styles.investigationOrderText}>{order + 1}</Text>
+      </View>
+      <Text
+        style={[
+          styles.investigationText,
+          answered && isCorrect && styles.investigationTextCorrect,
+          answered && isWrong && styles.investigationTextWrong,
+        ]}
+      >
+        {item}
+      </Text>
+      {!answered && (
+        <View style={styles.investigationArrows}>
+          <Pressable
+            onPress={onMoveUp}
+            disabled={isFirst}
+            style={styles.investigationArrow}
+          >
+            <Text style={[styles.investigationArrowText, isFirst && styles.investigationArrowDisabled]}>▲</Text>
+          </Pressable>
+          <Pressable
+            onPress={onMoveDown}
+            disabled={isLast}
+            style={styles.investigationArrow}
+          >
+            <Text style={[styles.investigationArrowText, isLast && styles.investigationArrowDisabled]}>▼</Text>
+          </Pressable>
+        </View>
+      )}
+      {answered && isCorrect && (
+        <View style={styles.investigationBadge}>
+          <Text style={styles.investigationBadgeText}>✓</Text>
+        </View>
+      )}
+      {answered && isWrong && (
+        <View style={[styles.investigationBadge, styles.investigationBadgeWrong]}>
+          <Text style={styles.investigationBadgeText}>✕</Text>
+        </View>
+      )}
+    </Animated.View>
   );
 }
 
@@ -724,6 +900,21 @@ const styles = StyleSheet.create({
     color: "#3a4560",
     textAlign: "center",
     lineHeight: 25,
+  },
+  speakBtn: {
+    marginTop: Spacing.two,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+    alignItems: "center",
+  },
+  speakBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Primary.primary,
   },
   speech: {
     flexDirection: "row",
@@ -1044,5 +1235,72 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#1c2742",
+  },
+  investigationItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  investigationArrows: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  investigationArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#e2e8f4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  investigationArrowText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: Primary.primary,
+  },
+  investigationArrowDisabled: {
+    color: "#9aa3b5",
+  },
+  investigationItemCorrect: {
+    borderColor: Brand.success,
+    backgroundColor: "#e3f8ef",
+  },
+  investigationItemWrong: {
+    borderColor: Brand.danger,
+    backgroundColor: "#ffeaea",
+  },
+  investigationTextCorrect: {
+    color: Brand.success,
+    fontWeight: "900",
+  },
+  investigationTextWrong: {
+    color: Brand.danger,
+    fontWeight: "900",
+  },
+  investigationBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Brand.success,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  investigationBadgeWrong: {
+    backgroundColor: Brand.danger,
+  },
+  investigationBadgeText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 16,
+  },
+  matchChipCorrect: {
+    borderColor: Brand.success,
+    backgroundColor: "#e3f8ef",
+  },
+  matchChipWrong: {
+    borderColor: Brand.danger,
+    backgroundColor: "#ffeaea",
   },
 });

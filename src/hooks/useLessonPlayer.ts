@@ -198,6 +198,7 @@ export interface LessonPlayerActions {
   selectPair: (leftIndex: number, rightIndex: number) => void;
   toggleSentenceWord: (word: string) => void;
   selectInvestigationStep: (stepIndex: number) => void;
+  moveInvestigationStep: (stepIndex: number, direction: -1 | 1) => void;
   next: () => void;
   resetStepState: () => void;
   refillHearts: (method: "gems" | "ad") => void;
@@ -524,6 +525,19 @@ export function useLessonPlayer(
     });
   }
 
+  function moveInvestigationStep(stepIndex: number, direction: -1 | 1) {
+    if (answered) return;
+    setSelectedOrder((prev) => {
+      const currentIndex = prev.indexOf(stepIndex);
+      if (currentIndex === -1) return prev;
+      const newIndex = currentIndex + direction;
+      if (newIndex < 0 || newIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[currentIndex], next[newIndex]] = [next[newIndex], next[currentIndex]];
+      return next;
+    });
+  }
+
   return {
     lecture,
     loading,
@@ -550,6 +564,7 @@ export function useLessonPlayer(
     selectPair,
     toggleSentenceWord,
     selectInvestigationStep,
+    moveInvestigationStep,
     next,
     resetStepState,
     elapsedTime,
