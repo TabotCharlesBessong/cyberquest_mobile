@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, type PressableProps, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps, type ViewStyle } from 'react-native';
 
 import { Brand, Primary } from '@/constants/theme';
 
@@ -7,6 +7,7 @@ type ButtonProps = PressableProps & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'hero';
   fullWidth?: boolean;
   disabled?: boolean;
+  loading?: boolean;
   style?: ViewStyle;
 };
 
@@ -15,12 +16,15 @@ export function Button({
   variant = 'primary',
   fullWidth,
   disabled,
+  loading,
   style,
   ...rest
 }: ButtonProps) {
+  const isLoading = !!loading;
+  const isDisabled = disabled || isLoading;
   return (
     <Pressable
-      disabled={disabled}
+      disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' && styles.primary,
@@ -28,23 +32,30 @@ export function Button({
         variant === 'ghost' && styles.ghost,
         variant === 'hero' && styles.hero,
         fullWidth && styles.fullWidth,
-        disabled && styles.disabled,
-        pressed && !disabled && variant === 'hero' && styles.heroPressed,
-        pressed && !disabled && variant !== 'hero' && styles.pressed,
+        isDisabled && styles.disabled,
+        pressed && !isDisabled && variant === 'hero' && styles.heroPressed,
+        pressed && !isDisabled && variant !== 'hero' && styles.pressed,
         style as ViewStyle,
       ]}
       {...rest}>
-      <Text
-        style={[
-          styles.label,
-          variant === 'primary' && styles.labelPrimary,
-          variant === 'secondary' && styles.labelSecondary,
-          variant === 'ghost' && styles.labelGhost,
-          variant === 'hero' && styles.labelHero,
-          disabled && styles.labelDisabled,
-        ]}>
-        {label}
-      </Text>
+      {isLoading ? (
+        <ActivityIndicator
+          color={variant === 'primary' || variant === 'hero' ? '#fff' : Brand.primary}
+          size="small"
+        />
+      ) : (
+        <Text
+          style={[
+            styles.label,
+            variant === 'primary' && styles.labelPrimary,
+            variant === 'secondary' && styles.labelSecondary,
+            variant === 'ghost' && styles.labelGhost,
+            variant === 'hero' && styles.labelHero,
+            isDisabled && styles.labelDisabled,
+          ]}>
+          {label}
+        </Text>
+      )}
     </Pressable>
   );
 }

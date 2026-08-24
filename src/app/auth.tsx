@@ -10,7 +10,7 @@ import {
 import { AuthShell } from '@/components/AuthShell';
 import { Button } from '@/components/Button';
 import { Mascot } from '@/components/Mascot';
-import { FormError, FormInput, FormPasswordInput } from '@/components/FormComponents';
+import { FormError, FormInput, FormPasswordInput, FormSelect } from '@/components/FormComponents';
 import { useZodForm } from '@/hooks/useZodForm';
 import { useLogin, useSignup } from '@/hooks/useApiQueries';
 import { useSetPendingEmail, useAuthActions, useCurrentUser } from '@/hooks/useAuth';
@@ -101,23 +101,24 @@ export default function AuthScreen() {
             // @ts-ignore
             leftIcon={<Text style={styles.inputIcon}>📧</Text>}
           />
-          <FormInput
-            label="YOUR AGE"
-            name="age"
-            placeholder="6"
-            keyboardType="number-pad"
-            // @ts-ignore
-            leftIcon={<Text style={styles.inputIcon}>📅</Text>}
-          />
-          <FormPasswordInput
-            label="SECRET PASSWORD"
-            name="password"
-            placeholder="Shhh... it's a secret!"
-            // @ts-ignore
-            leftIcon={<Text style={styles.inputIcon}>🔒</Text>}
-          />
-          {globalError && <FormError message={globalError} />}
-          <Button label="Sign Up" variant="hero" fullWidth onPress={onPress} disabled={isLoading} />
+           <FormSelect
+             label="YOUR AGE"
+             name="age"
+             placeholder="Select your age"
+             options={Array.from({ length: 15 }, (_, i) => {
+               const age = i + 4;
+               return { label: `${age} years old`, value: age };
+             })}
+           />
+           <FormPasswordInput
+             label="SECRET PASSWORD"
+             name="password"
+             placeholder="Shhh... it's a secret!"
+             // @ts-ignore
+             leftIcon={<Text style={styles.inputIcon}>🔒</Text>}
+           />
+           {globalError && <FormError message={globalError} />}
+           <Button label="Sign Up" variant="hero" fullWidth onPress={onPress} loading={isLoading} />
         </signupForm.FormProvider>
       ) : (
         <loginForm.FormProvider>
@@ -139,7 +140,7 @@ export default function AuthScreen() {
               leftIcon={<Text style={styles.inputIcon}>🔒</Text>}
             />
           {globalError && <FormError message={globalError} />}
-          <Button label="Log In" variant="hero" fullWidth onPress={onPress} disabled={isLoading} />
+           <Button label="Log In" variant="hero" fullWidth onPress={onPress} loading={isLoading} />
         </loginForm.FormProvider>
       )}
 

@@ -68,7 +68,7 @@ export default function ForgotPasswordScreen() {
             </Text>
           </View>
         ) : (
-          <Button label="Send reset code" variant="hero" fullWidth onPress={onPress} disabled={loading} />
+           <Button label="Send reset code" variant="hero" fullWidth onPress={onPress} loading={loading} />
         )}
       </form.FormProvider>
 

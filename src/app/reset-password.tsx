@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Mascot } from '@/components/Mascot';
-import { FormCodeInput, FormError, FormInput, FormPasswordInput } from '@/components/FormComponents';
+import { FormOtpInput, FormError, FormInput, FormPasswordInput } from '@/components/FormComponents';
 import { useZodForm } from '@/hooks/useZodForm';
 import { resetPasswordSchema, type ResetPasswordInput } from '@/lib/schemas';
 import { api } from '@/lib/api';
@@ -81,10 +81,10 @@ export default function ResetPasswordScreen() {
         <View style={styles.form}>
           <form.FormProvider>
             <FormInput label="Email" name="email" placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-            <FormCodeInput label="Reset code" name="code" />
+            <FormOtpInput label="Reset code" name="code" length={6} />
             <FormPasswordInput label="New password" name="newPassword" placeholder="At least 6 characters" />
             {error && <FormError message={error} />}
-            <Button label="Reset password" fullWidth onPress={onPress} disabled={loading} />
+            <Button label="Reset password" fullWidth onPress={onPress} loading={loading} />
           </form.FormProvider>
         </View>
       </ScrollView>
