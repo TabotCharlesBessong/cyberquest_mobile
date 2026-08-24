@@ -9,7 +9,7 @@ import {
 
 import { AuthShell } from '@/components/AuthShell';
 import { Button } from '@/components/Button';
-import { FormCodeInput, FormError } from '@/components/FormComponents';
+import { FormOtpInput, FormError } from '@/components/FormComponents';
 import { useZodForm } from '@/hooks/useZodForm';
 import { useVerifyEmail, useResendVerification } from '@/hooks/useApiQueries';
 import { usePendingEmail, useSetPendingEmail, useAuthActions } from '@/hooks/useAuth';
@@ -80,14 +80,13 @@ export default function VerifyScreen() {
       mascot="📧"
     >
       <form.FormProvider>
-        <FormCodeInput
+        <FormOtpInput
           label="Verification code"
           name="code"
-          // @ts-ignore
-          leftIcon={<Text style={styles.inputIcon}>🔢</Text>}
+          length={6}
         />
         {error && <FormError message={error} />}
-        <Button label="Verify" variant="hero" fullWidth onPress={onPress} disabled={loading} />
+        <Button label="Verify" variant="hero" fullWidth onPress={onPress} loading={loading} />
       </form.FormProvider>
 
       <Pressable onPress={resend} style={styles.resendRow}>

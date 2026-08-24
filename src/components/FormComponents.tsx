@@ -1,4 +1,4 @@
-import React, { type ReactNode, useState, createContext, useContext } from "react";
+import React, { type ReactNode, useState, useRef, createContext, useContext } from "react";
 import {
   Controller,
   type Control,
@@ -232,7 +232,7 @@ export function FormPasswordInput({
   );
 }
 
-export function FormCodeInput({
+export function FormOtpInput({
   label,
   name,
   control,
@@ -254,6 +254,9 @@ export function FormCodeInput({
   const error = (form.formState.errors as any)[name]?.message as
     | string
     | undefined;
+  const inputRefs = useRef<(TextInput | null)[]>(
+    Array.from({ length }, () => null),
+  );
 
   return (
     <View style={[styles.field, containerStyle]}>
@@ -262,20 +265,70 @@ export function FormCodeInput({
         control={controlInstance}
         name={name}
         rules={rules}
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            style={[styles.codeInput, error && styles.inputError]}
-            value={(value as string) ?? ""}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            keyboardType="number-pad"
-            maxLength={length}
-            textContentType="oneTimeCode"
-            autoComplete="sms-otp"
-            placeholder="123456"
-            placeholderTextColor="#aab"
-          />
-        )}
+        render={({ field: { onChange, onBlur, value } }) => {
+          const code = (value as string ?? "").slice(0, length);
+          const displayValues = code.split("");
+          while (displayValues.length < length) displayValues.push("");
+
+          const handleChange = (index: number, text: string) => {
+            if (text.length > 1) {
+              const pasted = text.slice(0, length);
+              onChange(pasted);
+              inputRefs.current[Math.min(pasted.length, length - 1)]?.focus();
+              return;
+            }
+            const newChars = [...displayValues];
+            newChars[index] = text;
+            onChange(newChars.join(""));
+            if (text && index < length - 1) {
+              inputRefs.current[index + 1]?.focus();
+            }
+          };
+
+          const handleKeyPress = (index: number, key: string) => {
+            if (key === "Backspace" && !displayValues[index] && index > 0) {
+              const newChars = [...displayValues];
+              newChars[index - 1] = "";
+              onChange(newChars.join(""));
+              inputRefs.current[index - 1]?.focus();
+            }
+          };
+
+          return (
+            <View
+              style={[
+                styles.otpContainer,
+                error && styles.inputError,
+              ]}
+            >
+              {displayValues.map((char, i) => (
+                <TextInput
+                  key={i}
+                  ref={(el) => {
+                    inputRefs.current[i] = el;
+                  }}
+                  style={[
+                    styles.otpInput,
+                    char && styles.otpInputFilled,
+                    error && styles.otpInputError,
+                  ]}
+                  value={char}
+                  onChangeText={(text) => handleChange(i, text)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleKeyPress(i, nativeEvent.key)
+                  }
+                  onBlur={onBlur}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  caretHidden
+                  placeholderTextColor="#aab"
+                />
+              ))}
+            </View>
+          );
+        }}
       />
       {error && <FormError message={error} />}
     </View>
@@ -864,20 +917,29 @@ const styles = StyleSheet.create({
   },
   eyeBtn: { paddingVertical: 16, paddingHorizontal: 18 },
   eyeText: { fontSize: 20 },
-  codeInput: {
-    paddingVertical: 20,
-    paddingHorizontal: 18,
-    fontSize: 28,
-    fontWeight: "900",
+  otpContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  otpInput: {
+    flex: 1,
+    aspectRatio: 1,
     textAlign: "center",
-    letterSpacing: 12,
+    fontSize: 24,
+    fontWeight: "900",
     color: "#1c2742",
-    borderRadius: 32,
     backgroundColor: "#F4F7FF",
     borderWidth: 2,
+    borderColor: "#e2e8f4",
+    borderRadius: 9999,
+  },
+  otpInputFilled: {
+    backgroundColor: "#fff",
     borderColor: Primary.primaryContainer,
-    borderBottomWidth: 4,
-    minHeight: 64,
+  },
+  otpInputError: {
+    borderColor: Brand.danger,
   },
   textArea: {
     paddingVertical: 16,
