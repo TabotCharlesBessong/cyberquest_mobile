@@ -27,7 +27,7 @@ export const resetPasswordSchema = z.object({
 });
 
 export const onboardingSchema = z.object({
-  ageGroup: z.enum(['A', 'B']),
+  ageGroup: z.enum(['A', 'B']).default('A'),
   avatar: z.string().default('🦊'),
 });
 

@@ -18,7 +18,7 @@ import { onboardingSchema } from '@/lib/schemas';
 import { useCurrentUser, useSetUser } from '@/hooks/useAuth';
 import { useUpdateProfile } from '@/hooks/useApiQueries';
 
-const STEPS = ['welcome', 'avatar', 'age', 'ready'] as const;
+const STEPS = ['welcome', 'avatar', 'ready'] as const;
 type Step = (typeof STEPS)[number];
 
 const STEP_CONTENT: Record<
@@ -35,11 +35,6 @@ const STEP_CONTENT: Record<
     title: 'Pick Your Avatar',
     subtitle: 'Choose your hero identity',
   },
-  age: {
-    emoji: '🧒',
-    title: 'Your Age Group',
-    subtitle: "We'll customize your adventure",
-  },
   ready: {
     emoji: '🛡️',
     title: 'Ready, Hero?',
@@ -55,58 +50,83 @@ export default function OnboardingScreen() {
   const updateProfile = useUpdateProfile();
   const [step, setStep] = useState<Step>('welcome');
   const [avatar, setAvatar] = useState(user?.avatar ?? '🦊');
+  const [error, setError] = useState<string | null>(null);
 
   const form = useZodForm(onboardingSchema, {
     ageGroup: user?.ageGroup === 'B' ? 'B' : 'A',
     avatar: user?.avatar ?? '🦊',
   });
 
+  const isSubmitting = updateProfile.isPending;
+
   useEffect(() => {
     if (!user) {
       router.replace('/');
       return;
     }
-    if (user.ageGroup) {
+    // Only redirect if the user has fully completed onboarding on the
+    // server. Checking ageGroup alone caused circular navigation because
+    // finish() updated local state before the API mutation confirmed.
+    if (user.onboarded) {
       router.replace('/(tabs)');
     }
   }, [user, router]);
 
   if (!user) return null;
 
+  const hasAvatar = !!user.avatar;
+
   const current = STEP_CONTENT[step];
   const isLast = step === 'ready';
 
   function next() {
-    if (step === 'welcome') setStep('avatar');
-    else if (step === 'avatar') setStep('age');
-    else if (step === 'age') setStep('ready');
-    else finish();
+    if (step === 'welcome') {
+      if (hasAvatar) setStep('ready');
+      else setStep('avatar');
+    } else if (step === 'avatar') {
+      setStep('ready');
+    } else {
+      finish();
+    }
   }
 
   function skip() {
+    if (isSubmitting) return;
     finish();
   }
 
   function finish() {
+    if (isSubmitting) return;
     const data = form.getValues();
-    const updated = {
-      ...user,
-      avatar: data.avatar,
-      ageGroup: data.ageGroup,
-      onboarded: true,
-    };
-    setUser(updated as any);
+    setError(null);
+    // Only update local state and navigate after the server confirms.
+    // Previously setUser was called before mutate, which triggered the
+    // useEffect redirect prematurely and caused circular navigation.
+    // Also, setUser must wrap the user object in { user: {...} } because
+    // useAuthStore.setState merges at the top level — setting flat user
+    // properties (id, name, etc.) would NOT update the store's `user` key.
     updateProfile.mutate(
-      { avatar: data.avatar, ageGroup: data.ageGroup },
+      { avatar: data.avatar, ageGroup: data.ageGroup, onboarded: true },
       {
         onSuccess: () => {
+          setUser({
+            user: {
+              ...user,
+              avatar: data.avatar,
+              ageGroup: data.ageGroup,
+              onboarded: true,
+            },
+          } as any);
           router.replace('/(tabs)');
+        },
+        onError: (e: any) => {
+          if (e instanceof Error) setError(e.message);
+          else setError('Something went wrong. Please try again.');
         },
       },
     );
   }
 
-  const selectedAgeGroup = form.watch('ageGroup');
   const stepIndex = STEPS.indexOf(step);
 
   return (
@@ -116,7 +136,11 @@ export default function OnboardingScreen() {
         <Animated.View style={[styles.orb, styles.orbSecondary]} />
       </View>
 
-      <Pressable onPress={skip} style={styles.skipBtn}>
+      <Pressable
+        onPress={skip}
+        disabled={isSubmitting}
+        style={[styles.skipBtn, isSubmitting && { opacity: 0.5 }]}
+      >
         <Text style={styles.skipText}>SKIP</Text>
       </Pressable>
 
@@ -154,14 +178,16 @@ export default function OnboardingScreen() {
           ))}
         </View>
 
-        <View style={styles.ctaWrap}>
+         <View style={styles.ctaWrap}>
             <Button
               label={isLast ? 'Start Learning' : 'Next'}
               variant="hero"
               fullWidth
               onPress={next}
+              loading={isSubmitting}
             />
-        </View>
+            {error && <Text style={styles.errorText}>{error}</Text>}
+          </View>
       </View>
     </View>
   );
@@ -195,44 +221,6 @@ export default function OnboardingScreen() {
                 </Pressable>
               );
             })}
-          </View>
-        </View>
-      );
-    }
-
-    if (step === 'age') {
-      return (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>YOUR AGE GROUP</Text>
-          <View style={styles.ageRow}>
-            <Pressable
-              onPress={() => form.setValue('ageGroup', 'A')}
-              style={[
-                styles.ageCard,
-                selectedAgeGroup === 'A' && {
-                  borderColor: Primary.primary,
-                  backgroundColor: '#eef4ff',
-                },
-              ]}
-            >
-              <Text style={styles.ageEmoji}>🧒</Text>
-              <Text style={styles.ageTitle}>Ages 6–8</Text>
-              <Text style={styles.ageSub}>Group A</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => form.setValue('ageGroup', 'B')}
-              style={[
-                styles.ageCard,
-                selectedAgeGroup === 'B' && {
-                  borderColor: Primary.primary,
-                  backgroundColor: '#eef4ff',
-                },
-              ]}
-            >
-              <Text style={styles.ageEmoji}>🧑‍🚀</Text>
-              <Text style={styles.ageTitle}>Ages 8–12</Text>
-              <Text style={styles.ageSub}>Group B</Text>
-            </Pressable>
           </View>
         </View>
       );
@@ -389,20 +377,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatarEmoji: { fontSize: 34 },
-  ageRow: { flexDirection: 'row', gap: Spacing.two },
-  ageCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: Spacing.three,
-    alignItems: 'center',
-    gap: Spacing.one,
-    borderWidth: 2,
-    borderColor: '#e2e8f4',
-  },
-  ageEmoji: { fontSize: 36 },
-  ageTitle: { fontSize: 16, fontWeight: '800', color: '#1c2742' },
-  ageSub: { fontSize: 12, fontWeight: '700', color: '#7c869c' },
   tips: { gap: Spacing.two },
   tip: {
     flexDirection: 'row',
@@ -435,5 +409,12 @@ const styles = StyleSheet.create({
   ctaWrap: {
     width: '100%',
     maxWidth: 400,
+  },
+  errorText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#BA1A1A',
+    textAlign: 'center',
+    marginTop: Spacing.two,
   },
 });
