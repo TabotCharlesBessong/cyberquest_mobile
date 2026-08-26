@@ -8,6 +8,7 @@ import { HeartRefillModal } from "@/components/HeartRefillModal";
 import { Brand, Primary, Spacing, Surface } from "@/constants/theme";
 import type { LessonStep } from "@/data/types";
 import { useLessonPlayer } from "@/hooks/useLessonPlayer";
+import { useAuthStore } from "@/stores/authStore";
 import { useSafeBack } from "@/lib/navigation";
 import { loadSounds, playCelebration } from "@/utils/sounds";
 import { Animated, PanResponder, Pressable, ScrollView, Text, View , StyleSheet} from "react-native";
@@ -22,14 +23,16 @@ export default function LessonScreen() {
     typeof params.lessonId === "string" ? params.lessonId : undefined;
   const safeBack = useSafeBack("/(tabs)");
 
-  const {
+   const {
     lecture,
     loading,
     error,
     stepIndex,
     selected,
-    selectedPairs,
-    selectedSentence,
+     selectedPairs,
+    pairResults,
+    selectedSentenceWords,
+    remainingWords,
     selectedOrder,
     answered,
     finished,
@@ -56,9 +59,16 @@ export default function LessonScreen() {
     accuracy,
     hearts,
     heartsDepleted,
+    heartConsumedThisQuestion,
+    lastSelectedLeft,
+    shuffledLeftItems,
+    shuffledRightItems,
     refillHearts,
     dismissHeartsDepleted,
   } = useLessonPlayer(lectureSlug, lessonId);
+
+  const currentUser = useAuthStore((s) => s.user);
+  const doubleXpActive = currentUser?.doubleXpActive ?? false;
 
   const [liveSeconds, setLiveSeconds] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -76,19 +86,58 @@ export default function LessonScreen() {
     setIsSpeaking(true);
     try {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const getBestVoice = (): SpeechSynthesisVoice | undefined => {
+          const voices = window.speechSynthesis.getVoices();
+          const preferredNames = [
+            "Google US English",
+            "Google English (United States)",
+            "Microsoft David",
+            "Microsoft Mark",
+            "Alex",
+            "Samantha",
+          ];
+          for (const name of preferredNames) {
+            const found = voices.find(
+              (v) =>
+                v.lang === "en-US" &&
+                v.name.toLowerCase().includes(name.toLowerCase())
+            );
+            if (found) return found;
+          }
+          return voices.find((v) => v.lang === "en-US");
+        };
+
+        const voicesLoaded = window.speechSynthesis.getVoices().length > 0;
+        if (!voicesLoaded) {
+          await new Promise<void>((resolve) => {
+            window.speechSynthesis.onvoiceschanged = () => resolve();
+            setTimeout(resolve, 200);
+          });
+        }
+
+        const bestVoice = getBestVoice();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "en-US";
-        utterance.pitch = 1.0;
-        utterance.rate = 0.9;
+        utterance.voice = bestVoice ?? null;
+        utterance.pitch = 1.2;
+        utterance.rate = 1.0;
+        utterance.volume = 1.0;
         utterance.onend = () => setIsSpeaking(false);
         utterance.onerror = () => setIsSpeaking(false);
         window.speechSynthesis.speak(utterance);
       } else {
         const Speech = (await import("expo-speech")).default;
+        const voices = await Speech.getAvailableVoicesAsync();
+        const enVoice = voices.find(
+          (v) => v.language.startsWith("en") || v.identifier?.includes("en")
+        );
+
         Speech.speak(text, {
           language: "en",
-          pitch: 1.0,
-          rate: 0.9,
+          voice: enVoice?.identifier ?? "en-us-x-sfg#male/m3",
+          pitch: 1.2,
+          rate: 1.0,
+          volume: 1.0,
           onDone: () => setIsSpeaking(false),
           onError: () => setIsSpeaking(false),
         });
@@ -192,6 +241,11 @@ export default function LessonScreen() {
         </View>
         <View style={styles.heartsRow}>
           <Text style={styles.heartsText}>❤️ {hearts}</Text>
+          {doubleXpActive && (
+            <View style={styles.doubleXpBadge}>
+              <Text style={styles.doubleXpText}>2x XP</Text>
+            </View>
+          )}
         </View>
         <View style={styles.stepCountWrap}>
           {inRetryPhase && <Text style={styles.retryLabel}>Retry</Text>}
@@ -234,13 +288,18 @@ export default function LessonScreen() {
               <MatchingView
                 step={step}
                 selectedPairs={selectedPairs}
+                pairResults={pairResults}
                 onSelectPair={selectPair}
+                lastSelectedLeft={lastSelectedLeft}
+                shuffledLeftItems={shuffledLeftItems}
+                shuffledRightItems={shuffledRightItems}
                 answered={answered}
               />
             ) : step.type === "sentence_builder" ? (
               <SentenceBuilderView
                 step={step}
-                selectedSentence={selectedSentence}
+                selectedSentenceWords={selectedSentenceWords}
+                remainingWords={remainingWords}
                 onToggleWord={toggleSentenceWord}
                 answered={answered}
               />
@@ -301,6 +360,7 @@ export default function LessonScreen() {
         title={finished ? "Lesson Complete!" : ""}
         subtitle={`You earned ${lecture?.badgeName ?? "XP"}!`}
         xp={result?.xpEarned ?? 30}
+        gems={result?.gemsEarned ?? 0}
         badgeName={lecture?.badgeName ?? "Star"}
         elapsedTime={elapsedTime}
         accuracy={accuracy}
@@ -476,73 +536,85 @@ function QuizView({
 function MatchingView({
   step,
   selectedPairs,
+  pairResults,
   onSelectPair,
+  lastSelectedLeft,
+  shuffledLeftItems,
+  shuffledRightItems,
   answered,
 }: {
   step: Extract<LessonStep, { type: "matching" }>;
   selectedPairs: Record<number, number>;
+  pairResults: Record<number, { correct: boolean; rightIndex: number }>;
   onSelectPair: (left: number, right: number) => void;
+  lastSelectedLeft: number | null;
+  shuffledLeftItems: { left: string; originalIndex: number }[];
+  shuffledRightItems: { right: string; originalIndex: number }[];
   answered: boolean;
 }) {
-  const leftItems = step.pairs?.map((p) => p.left) ?? [];
-  const rightItems = step.pairs?.map((p) => p.right) ?? [];
-
-  const selectedLeft = Object.keys(selectedPairs).find(
-    (k) => selectedPairs[Number(k)] === -1
-  );
+  const getMatchedLeftForRight = (rightDisplayIdx: number): number | null => {
+    for (const [lIdx, rIdx] of Object.entries(selectedPairs)) {
+      if (rIdx === rightDisplayIdx) return Number(lIdx);
+    }
+    return null;
+  };
 
   return (
     <View style={styles.matchingContainer}>
       <Text style={styles.matchingQuestion}>{step.question}</Text>
       <View style={styles.matchingGrid}>
         <View style={styles.matchingColumn}>
-          {leftItems.map((item, i) => {
-            const isSelected = selectedPairs[i] !== undefined;
-            const isPaired = selectedPairs[i] !== -1;
+          {shuffledLeftItems.map((item, i) => {
+            const paired = selectedPairs[i] !== undefined;
+            const result = pairResults[i];
+            let chipStyle: any = styles.matchChip;
+            if (answered) {
+              if (result?.correct) chipStyle = styles.matchChipCorrect;
+              else chipStyle = styles.matchChipWrong;
+            } else if (lastSelectedLeft === i) {
+              chipStyle = styles.matchChipSelected;
+            }
             return (
               <Pressable
-                key={i}
-                onPress={() => !answered && onSelectPair(i, -1)}
-                style={[
-                  styles.matchChip,
-                  isSelected && styles.matchChipSelected,
-                  answered && isPaired && styles.matchChipCorrect,
-                  answered && isSelected && !isPaired && styles.matchChipWrong,
-                ]}
+                key={`left-${i}`}
+                onPress={() => {
+                  if (answered) return;
+                  onSelectPair(i, -1);
+                }}
+                disabled={answered}
+                style={[chipStyle]}
               >
-                <Text style={styles.matchChipText}>{item}</Text>
+                <Text style={styles.matchChipText}>{item.left}</Text>
               </Pressable>
             );
           })}
         </View>
         <View style={styles.matchingColumn}>
-          {rightItems.map((item, j) => {
-            const pairedLeft = Object.keys(selectedPairs).find(
-              (k) => selectedPairs[Number(k)] === j
-            );
-            const isMatched = pairedLeft !== undefined;
-            const isPairedCorrectly =
-              isMatched &&
-              step.pairs?.[Number(pairedLeft)]?.right === item;
+          {shuffledRightItems.map((item, j) => {
+            const matchedLeft = getMatchedLeftForRight(j);
+            const result = matchedLeft !== null ? pairResults[matchedLeft] : null;
+            let chipStyle: any = styles.matchChip;
+            if (answered) {
+              if (result?.correct) chipStyle = styles.matchChipCorrect;
+              else chipStyle = styles.matchChipWrong;
+            } else if (matchedLeft !== null) {
+              chipStyle = styles.matchChipMatched;
+            }
             return (
               <Pressable
-                key={j}
+                key={`right-${j}`}
                 onPress={() => {
                   if (answered) return;
-                  if (selectedLeft !== undefined) {
-                    onSelectPair(Number(selectedLeft), j);
-                  } else if (isMatched) {
-                    onSelectPair(Number(pairedLeft), -1);
+                  if (lastSelectedLeft !== null) {
+                    onSelectPair(lastSelectedLeft, j);
+                  } else if (matchedLeft !== null) {
+                    onSelectPair(matchedLeft, -1);
                   }
                 }}
-                style={[
-                  styles.matchChip,
-                  isMatched && styles.matchChipMatched,
-                  answered && isPairedCorrectly && styles.matchChipCorrect,
-                  answered && isMatched && !isPairedCorrectly && styles.matchChipWrong,
-                ]}
+                disabled={answered}
+                style={[chipStyle]}
               >
-                <Text style={styles.matchChipText}>{item}</Text>
+                <Text style={styles.matchChipText}>{item.right}</Text>
               </Pressable>
             );
           })}
@@ -552,8 +624,8 @@ function MatchingView({
         <View
           style={[
             styles.feedback,
-            Object.keys(selectedPairs).length === leftItems.length &&
-            Object.values(selectedPairs).every((r, i) => step.pairs?.[i]?.right === rightItems[r])
+            Object.keys(pairResults).length === step.pairs?.length &&
+            Object.values(pairResults).every((r) => r.correct)
               ? styles.feedbackGood
               : styles.feedbackBad,
           ]}
@@ -567,46 +639,129 @@ function MatchingView({
 
 function SentenceBuilderView({
   step,
-  selectedSentence,
+  selectedSentenceWords,
+  remainingWords,
   onToggleWord,
   answered,
 }: {
   step: Extract<LessonStep, { type: "sentence_builder" }>;
-  selectedSentence: string[];
+  selectedSentenceWords: string[];
+  remainingWords: string[];
   onToggleWord: (word: string) => void;
   answered: boolean;
 }) {
+  const sentenceParts = step.sentence.split(/(\s*___\s*)/).filter((p) => p.trim() || p.includes("_"));
+  const blankIndices: number[] = [];
+  let blankIdx = 0;
+  const parts = step.sentence.split(/(\s*___\s*)/).map((part, i) => {
+    const isBlank = /__/.test(part);
+    if (isBlank) {
+      const idx = blankIdx;
+      blankIdx++;
+      blankIndices.push(i);
+      const filledWord = selectedSentenceWords[idx];
+      return {
+        type: "blank" as const,
+        index: idx,
+        text: part,
+        filledWord: filledWord,
+      };
+    }
+    return {
+      type: "text" as const,
+      index: -1,
+      text: part,
+      filledWord: undefined,
+    };
+  });
+
+  const allBlanksFilled = blankIndices.every((_, idx) => selectedSentenceWords[idx] !== undefined);
+
   return (
     <View style={styles.sentenceContainer}>
       <Text style={styles.sentenceQuestion}>{step.question}</Text>
       <View style={styles.sentenceBuildArea}>
-        {selectedSentence.length === 0 ? (
-          <Text style={styles.sentencePlaceholder}>Tap words below to build your sentence...</Text>
+        {selectedSentenceWords.length === 0 && !allBlanksFilled ? (
+          <Text style={styles.sentencePlaceholder}>Tap words below to fill in the blanks...</Text>
         ) : (
-          selectedSentence.map((word, i) => (
-            <Pressable
-              key={i}
-              onPress={() => onToggleWord(word)}
-              style={styles.sentenceWord}
-            >
-              <Text style={styles.sentenceWordText}>{word}</Text>
-            </Pressable>
-          ))
+          <View style={styles.sentenceRow}>
+            {parts.map((part, i) => {
+              if (part.type === "blank") {
+                const word = selectedSentenceWords[part.index];
+                const isCorrect = answered && word;
+                const isWrong = answered && !word;
+                let blankStyle: any = styles.sentenceBlank;
+                if (answered) {
+                  if (word) blankStyle = styles.sentenceBlankFilled;
+                  else blankStyle = styles.sentenceBlankEmpty;
+                } else if (word) {
+                  blankStyle = styles.sentenceBlankFilled;
+                }
+                return (
+                  <View key={`blank-${i}`} style={blankStyle}>
+                    {word ? (
+                      <Text
+                        style={[
+                          styles.sentenceBlankText,
+                          answered && isCorrect && styles.sentenceBlankTextCorrect,
+                          answered && isWrong && styles.sentenceBlankTextWrong,
+                        ]}
+                      >
+                        {word}
+                      </Text>
+                    ) : (
+                      <Text style={styles.sentenceBlankPlaceholder}>___</Text>
+                    )}
+                  </View>
+                );
+              }
+              return (
+                <Text key={`text-${i}`} style={styles.sentenceBuildText}>
+                  {part.text}
+                </Text>
+              );
+            })}
+          </View>
         )}
       </View>
       <View style={styles.sentenceOptions}>
-        {step.sentenceParts
-          .filter((w) => !selectedSentence.includes(w))
-          .map((word, i) => (
-            <Pressable
-              key={i}
-              onPress={() => onToggleWord(word)}
-              style={styles.sentenceOption}
+        {remainingWords.map((word, i) => (
+          <Pressable
+            key={`opt-${i}`}
+            onPress={() => onToggleWord(word)}
+            disabled={answered}
+            style={[styles.sentenceOption, answered && styles.sentenceOptionDisabled]}
+          >
+            <Text
+              style={[
+                styles.sentenceOptionText,
+                answered && styles.sentenceOptionTextDisabled,
+              ]}
             >
-              <Text style={styles.sentenceOptionText}>{word}</Text>
-            </Pressable>
-          ))}
+              {word}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+      {answered && (
+        <View
+          style={[
+            styles.feedback,
+            (() => {
+              let wordIdx = 0;
+              const filled = step.sentence.replace(/__+/g, () => {
+                const word = selectedSentenceWords[wordIdx++];
+                return word ?? "___";
+              });
+              return filled.trim() === step.correctSentence;
+            })()
+              ? styles.feedbackGood
+              : styles.feedbackBad,
+          ]}
+        >
+          <Text style={styles.feedbackText}>{step.explanation}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -813,6 +968,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#7c869c",
+  },
+  doubleXpBadge: {
+    backgroundColor: Brand.warning,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  doubleXpText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#fff",
   },
   retryLabel: {
     fontSize: 10,
@@ -1160,6 +1327,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  sentenceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+  },
+  sentenceBuildText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#3a4560",
+  },
+  sentenceBlank: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#5B9DF6",
+    paddingHorizontal: 4,
+    minHeight: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sentenceBlankFilled: {
+    borderBottomWidth: 2,
+    borderBottomColor: Brand.success,
+  },
+  sentenceBlankEmpty: {
+    borderBottomWidth: 2,
+    borderBottomColor: Brand.danger,
+  },
+  sentenceBlankText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1c2742",
+    paddingHorizontal: 6,
+  },
+  sentenceBlankTextCorrect: {
+    color: Brand.success,
+  },
+  sentenceBlankTextWrong: {
+    color: Brand.danger,
+  },
+  sentenceBlankPlaceholder: {
+    fontSize: 14,
+    color: "#9aa3b5",
+    fontWeight: "600",
+  },
   sentenceWord: {
     backgroundColor: Primary.primaryContainer,
     borderRadius: 12,
@@ -1184,10 +1395,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#e2e8f4",
   },
+  sentenceOptionDisabled: {
+    opacity: 0.5,
+  },
   sentenceOptionText: {
     color: "#1c2742",
     fontWeight: "700",
     fontSize: 14,
+  },
+  sentenceOptionTextDisabled: {
+    color: "#9aa3b5",
   },
   investigationContainer: { gap: Spacing.four, marginTop: Spacing.three },
   investigationQuestion: {
