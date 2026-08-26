@@ -19,6 +19,7 @@ type CelebrationProps = {
   title: string;
   subtitle?: string;
   xp?: number;
+  gems?: number;
   badgeName?: string;
   elapsedTime?: number;
   accuracy?: number;
@@ -31,6 +32,7 @@ export function Celebration({
   title,
   subtitle,
   xp = 30,
+  gems = 0,
   badgeName,
   elapsedTime = 0,
   accuracy = 100,
@@ -90,11 +92,17 @@ export function Celebration({
           </View>
         </View>
 
-        <View style={styles.chips}>
+          <View style={styles.chips}>
           <View style={styles.chip}>
             <Text style={styles.chipValue}>+{xp}</Text>
             <Text style={styles.chipLabel}>XP</Text>
           </View>
+          {gems > 0 ? (
+            <View style={[styles.chip, { backgroundColor: Brand.warning }]}>
+              <Text style={styles.chipValue}>+{gems}</Text>
+              <Text style={styles.chipLabel}>GEMS</Text>
+            </View>
+          ) : null}
           {badgeName ? (
             <View style={[styles.chip, { backgroundColor: Brand.warning }]}>
               <Text style={styles.chipValue}>{badgeName}</Text>

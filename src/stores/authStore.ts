@@ -15,6 +15,9 @@ type User = {
   hearts: number;
   gems: number;
   ageGroup: string | null;
+  doubleXpActive: boolean;
+  doubleXpExpiresAt: string | null;
+  doubleXpSource: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -88,11 +91,13 @@ interface AuthState {
   modules: ModuleProgress[];
   badges: Badge[];
   dailyQuests: DailyQuest[];
+  weeklyQuests: DailyQuest[];
   inventory: InventoryItem[];
   setPendingEmail: (email: string | null) => void;
   setModules: (modules: ModuleProgress[]) => void;
   setBadges: (badges: Badge[]) => void;
   setDailyQuests: (quests: DailyQuest[]) => void;
+  setWeeklyQuests: (quests: DailyQuest[]) => void;
   setInventory: (inventory: InventoryItem[]) => void;
   login: (token: string) => Promise<void>;
   signup: (token: string) => Promise<void>;
@@ -108,12 +113,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   modules: [],
   badges: [],
   dailyQuests: [],
+  weeklyQuests: [],
   inventory: [],
 
   setPendingEmail: (email) => set({ pendingEmail: email }),
   setModules: (modules) => set({ modules }),
   setBadges: (badges) => set({ badges }),
   setDailyQuests: (quests) => set({ dailyQuests: quests }),
+  setWeeklyQuests: (quests) => set({ weeklyQuests: quests }),
   setInventory: (inventory) => set({ inventory }),
 
   async login(token) {
@@ -144,13 +151,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async logout() {
     await clearToken();
-    set({ user: null, token: null, status: 'unauthenticated', pendingEmail: null, modules: [], badges: [], dailyQuests: [], inventory: [] });
+    set({ user: null, token: null, status: 'unauthenticated', pendingEmail: null, modules: [], badges: [], dailyQuests: [], weeklyQuests: [], inventory: [] });
   },
 
   async refreshUser() {
     const { token } = get();
     if (!token) {
-      set({ status: 'unauthenticated', user: null, pendingEmail: null, modules: [], badges: [], dailyQuests: [], inventory: [] });
+      set({ status: 'unauthenticated', user: null, pendingEmail: null, modules: [], badges: [], dailyQuests: [], weeklyQuests: [], inventory: [] });
       return;
     }
     try {
@@ -159,7 +166,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, status: 'authenticated' });
     } catch {
       await clearToken();
-      set({ user: null, token: null, status: 'unauthenticated', pendingEmail: null, modules: [], badges: [], dailyQuests: [], inventory: [] });
+      set({ user: null, token: null, status: 'unauthenticated', pendingEmail: null, modules: [], badges: [], dailyQuests: [], weeklyQuests: [], inventory: [] });
     }
   },
 }));

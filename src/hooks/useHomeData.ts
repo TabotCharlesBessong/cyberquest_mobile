@@ -4,7 +4,7 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   useCurriculumSections,
   useMyProgress,
-  useDailyQuests,
+  useQuests,
 } from "./useApiQueries";
 import { trace } from "@/utils/debug";
 
@@ -58,7 +58,7 @@ export function useHomeData() {
   const storeModules = useAuthStore((s) => s.modules);
   const sectionsQuery = useCurriculumSections(user?.ageGroup ?? "A");
   const progressQuery = useMyProgress();
-  const questsQuery = useDailyQuests();
+  const questsQuery = useQuests();
 
   const sections =
     (sectionsQuery.data?.data as { sections: Section[] } | undefined)
@@ -69,8 +69,11 @@ export function useHomeData() {
       : ((progressQuery.data?.data as { modules: ModuleProgress[] } | undefined)
           ?.modules ?? []);
   const quests =
-    (questsQuery.data?.data as { dailyQuests: DailyQuest[] } | undefined)
-      ?.dailyQuests ?? [];
+    (questsQuery.data?.data as { daily: DailyQuest[]; weekly: DailyQuest[] } | undefined)
+      ?.daily ?? [];
+  const weeklyQuests =
+    (questsQuery.data?.data as { daily: DailyQuest[]; weekly: DailyQuest[] } | undefined)
+      ?.weekly ?? [];
   const xp = user?.xp ?? 0;
   const xpForNext = 100;
   const xpIntoLevel = xp % xpForNext;
@@ -117,6 +120,7 @@ export function useHomeData() {
     lectures: sections,
     modules,
     quests,
+    weeklyQuests,
     xp,
     xpForNext,
     xpIntoLevel,
