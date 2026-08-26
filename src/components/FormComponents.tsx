@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
   Modal,
-  FlatList,
+  ScrollView,
 } from "react-native";
 
 import { Brand, Primary, Spacing } from "@/constants/theme";
@@ -455,7 +455,11 @@ export function FormSelect({
         render={({ field: { onChange, onBlur } }) => (
           <>
             <Pressable
-              style={[styles.selectTrigger, error && styles.inputError]}
+              style={[
+                styles.selectTrigger,
+                error && styles.inputError,
+                open && styles.selectTriggerOpen,
+              ]}
               onPress={() => setOpen(!open)}
             >
               <Text
@@ -484,11 +488,13 @@ export function FormSelect({
                     pointerEvents="box-none"
                   >
                     <Text style={styles.modalTitle}>{label}</Text>
-                    <FlatList
-                      data={options}
-                      keyExtractor={(item) => String(item.value)}
-                      renderItem={({ item }) => (
+                    <ScrollView
+                      style={styles.modalScrollContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {options.map((item) => (
                         <Pressable
+                          key={String(item.value)}
                           style={[
                             styles.modalItem,
                             item.value === value && styles.modalItemSelected,
@@ -512,8 +518,8 @@ export function FormSelect({
                             <Text style={styles.modalCheck}>✓</Text>
                           )}
                         </Pressable>
-                      )}
-                    />
+                      ))}
+                    </ScrollView>
                     <Pressable
                       onPress={() => setOpen(false)}
                       style={styles.modalClose}
@@ -983,6 +989,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     minHeight: 64,
   },
+  selectTriggerOpen: {
+    borderColor: Primary.primaryContainer,
+    backgroundColor: "#fff",
+  },
   selectText: { fontSize: 17, color: "#1c2742", flex: 1 },
   selectPlaceholder: { color: "#aab" },
   selectArrow: { fontSize: 18, color: "#7c869c", marginLeft: 8 },
@@ -999,6 +1009,9 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     width: "100%",
     maxHeight: "70%",
+  },
+  modalScrollContent: {
+    maxHeight: 300,
   },
   modalTitle: {
     fontSize: 20,
