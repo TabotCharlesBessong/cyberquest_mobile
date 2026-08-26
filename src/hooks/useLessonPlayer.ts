@@ -51,14 +51,15 @@ type CurriculumLesson = {
   order: number;
   ageGroup: string;
   difficulty: number;
-  questions: {
+    questions: {
     id: string;
     type: string;
     question: string;
     options?: string[];
     correctIndex?: number;
     pairs?: { left: string; right: string }[];
-    sentenceParts?: string[];
+    sentence?: string;
+    missingWords?: string[];
     correctSentence?: string;
     investigationSteps?: string[];
     correctOrder?: number[];
@@ -133,7 +134,8 @@ function mapCurriculumLessonToSteps(lesson: CurriculumLesson): LessonStep[] {
         id: q.id,
         type: "sentence_builder",
         question: q.question,
-        sentenceParts: q.sentenceParts || [],
+        sentence: q.sentence ?? "",
+        missingWords: q.missingWords ?? [],
         correctSentence: q.correctSentence || "",
         explanation: q.explanation,
         icon: "🧩",
@@ -170,14 +172,16 @@ export interface LessonPlayerState {
   stepIndex: number;
   selected: number | null;
   selectedPairs: Record<number, number>;
-  selectedSentence: string[];
+  pairResults: Record<number, { correct: boolean; rightIndex: number }>;
+  selectedSentenceWords: string[];
+  remainingWords: string[];
   selectedOrder: number[];
   answered: boolean;
   correctCount: number;
   finished: boolean;
   celebrate: boolean;
   submitting: boolean;
-  result: { xpEarned: number; newLevel: number } | null;
+  result: { xpEarned: number; newLevel: number; gemsEarned?: number } | null;
   steps: LessonStep[];
   total: number;
   step: LessonStep | undefined;
@@ -191,6 +195,10 @@ export interface LessonPlayerState {
   inRetryPhase: boolean;
   hearts: number;
   heartsDepleted: boolean;
+  heartConsumedThisQuestion: boolean;
+  lastSelectedLeft: number | null;
+  shuffledLeftItems: { left: string; originalIndex: number }[];
+  shuffledRightItems: { right: string; originalIndex: number }[];
 }
 
 export interface LessonPlayerActions {
@@ -220,6 +228,31 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+function hashString(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function seededShuffle<T>(array: T[], seed: string): T[] {
+  const rand = (() => {
+    let s = hashString(seed);
+    return () => {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  })();
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export function useLessonPlayer(
   lectureSlug: string | undefined,
   lessonId?: string,
@@ -237,7 +270,9 @@ export function useLessonPlayer(
   const [stepIndex, setStepIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedPairs, setSelectedPairs] = useState<Record<number, number>>({});
-  const [selectedSentence, setSelectedSentence] = useState<string[]>([]);
+  const [pairResults, setPairResults] = useState<Record<number, { correct: boolean; rightIndex: number }>>({});
+  const [selectedSentenceWords, setSelectedSentenceWords] = useState<string[]>([]);
+  const [remainingWords, setRemainingWords] = useState<string[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<number[]>([]);
   const [answered, setAnswered] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
@@ -247,6 +282,7 @@ export function useLessonPlayer(
   const [result, setResult] = useState<{
     xpEarned: number;
     newLevel: number;
+    gemsEarned?: number;
   } | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
@@ -257,6 +293,8 @@ export function useLessonPlayer(
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState(false);
   const [hearts, setHearts] = useState(user?.hearts ?? 5);
   const [heartsDepleted, setHeartsDepleted] = useState(false);
+  const [heartConsumedThisQuestion, setHeartConsumedThisQuestion] = useState(false);
+  const [lastSelectedLeft, setLastSelectedLeft] = useState<number | null>(null);
 
   const enter = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
@@ -303,10 +341,34 @@ export function useLessonPlayer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step?.id, retryIndex]);
 
+  const { shuffledLeftItems, shuffledRightItems } = useMemo(() => {
+    if (!step || step.type !== "matching") {
+      return { shuffledLeftItems: [], shuffledRightItems: [] };
+    }
+    const matchingStep = step as Extract<LessonStep, { type: "matching" }>;
+    const pairs = matchingStep.pairs || [];
+    const leftItems = pairs.map((p, i) => ({ left: p.left, originalIndex: i }));
+    const rightItems = pairs.map((p, i) => ({ right: p.right, originalIndex: i }));
+    const seed = step.id;
+    const shuffledLeft = seededShuffle(leftItems, seed + "-left");
+    const shuffledRight = seededShuffle(rightItems, seed + "-right");
+    return { shuffledLeftItems: shuffledLeft, shuffledRightItems: shuffledRight };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step?.id]);
+
   useEffect(() => {
     if (!lectureSlug && !lessonId) return;
     resetStepState();
   }, [lectureSlug, lessonId]);
+
+  useEffect(() => {
+    if (!step) return;
+    if (step.type === "sentence_builder") {
+      const sbStep = step as Extract<LessonStep, { type: "sentence_builder" }>;
+      setRemainingWords([...sbStep.missingWords]);
+      setSelectedSentenceWords([]);
+    }
+  }, [step?.id]);
 
   useEffect(() => {
     if (finished) return;
@@ -326,7 +388,9 @@ export function useLessonPlayer(
     setInRetryPhase(false);
     setSelected(null);
     setSelectedPairs({});
-    setSelectedSentence([]);
+    setPairResults({});
+    setSelectedSentenceWords([]);
+    setRemainingWords([]);
     setSelectedOrder([]);
     setAnswered(false);
     setCorrectCount(0);
@@ -339,6 +403,8 @@ export function useLessonPlayer(
     setLastAnswerCorrect(false);
     setHeartsDepleted(false);
     setHearts(user?.hearts ?? 5);
+    setHeartConsumedThisQuestion(false);
+    setLastSelectedLeft(null);
     startTimeRef.current = Date.now();
   }
 
@@ -358,16 +424,19 @@ export function useLessonPlayer(
     } else if (currentStep.type === "matching") {
       const matchingStep = currentStep as Extract<LessonStep, { type: "matching" }>;
       const totalPairs = matchingStep.pairs?.length || 0;
-      const matchedCorrectly = Object.entries(selectedPairs).filter(
-        ([leftIdx, rightIdx]) => {
-          const pair = matchingStep.pairs?.[Number(leftIdx)];
-          return pair && matchingStep.pairs?.findIndex(p => p.right === pair.right) === Number(rightIdx);
-        }
+      const matchedCorrectly = Object.entries(pairResults).filter(
+        ([leftIdx, result]) => result.correct
       ).length;
-      correct = matchedCorrectly === totalPairs && Object.keys(selectedPairs).length === totalPairs;
+      const allMatched = Object.keys(pairResults).length === totalPairs;
+      correct = matchedCorrectly === totalPairs && allMatched;
     } else if (currentStep.type === "sentence_builder") {
       const sentenceStep = currentStep as Extract<LessonStep, { type: "sentence_builder" }>;
-      correct = selectedSentence.join(" ") === sentenceStep.correctSentence;
+      let wordIdx = 0;
+      const filled = sentenceStep.sentence.replace(/__+/g, () => {
+        const word = selectedSentenceWords[wordIdx++];
+        return word ?? "___";
+      });
+      correct = filled.trim() === sentenceStep.correctSentence;
     } else if (currentStep.type === "investigation") {
       const invStep = currentStep as Extract<LessonStep, { type: "investigation" }>;
       correct = selectedOrder.length === (invStep.investigationSteps?.length || 0) &&
@@ -383,14 +452,17 @@ export function useLessonPlayer(
       if (!inRetryPhase && currentStep) {
         setRetryQueue((prev) => [...prev, currentStep]);
       }
-      consumeHeartMutation.mutate();
-      setHearts((h) => {
-        const next = Math.max(0, h - 1);
-        if (next === 0) {
-          setHeartsDepleted(true);
-        }
-        return next;
-      });
+      if (!heartConsumedThisQuestion) {
+        consumeHeartMutation.mutate();
+        setHearts((h) => {
+          const next = Math.max(0, h - 1);
+          if (next === 0) {
+            setHeartsDepleted(true);
+          }
+          return next;
+        });
+        setHeartConsumedThisQuestion(true);
+      }
       Animated.sequence([
         Animated.timing(shake, {
           toValue: 1,
@@ -422,6 +494,11 @@ export function useLessonPlayer(
         setSelected(null);
         setAnswered(false);
         setLastAnswerCorrect(false);
+        setHeartConsumedThisQuestion(false);
+        setLastSelectedLeft(null);
+        setPairResults({});
+        setSelectedSentenceWords([]);
+        setRemainingWords([]);
         return;
       }
       if (retryIndex >= retryQueue.length - 1) {
@@ -432,6 +509,11 @@ export function useLessonPlayer(
       setSelected(null);
       setAnswered(false);
       setLastAnswerCorrect(false);
+      setHeartConsumedThisQuestion(false);
+      setLastSelectedLeft(null);
+      setPairResults({});
+      setSelectedSentenceWords([]);
+      setRemainingWords([]);
       return;
     }
 
@@ -441,6 +523,11 @@ export function useLessonPlayer(
         setRetryIndex(0);
         setSelected(null);
         setAnswered(false);
+        setHeartConsumedThisQuestion(false);
+        setLastSelectedLeft(null);
+        setPairResults({});
+        setSelectedSentenceWords([]);
+        setRemainingWords([]);
         return;
       }
       finishLesson();
@@ -450,6 +537,11 @@ export function useLessonPlayer(
     setStepIndex((i) => i + 1);
     setSelected(null);
     setAnswered(false);
+    setHeartConsumedThisQuestion(false);
+    setLastSelectedLeft(null);
+    setPairResults({});
+    setSelectedSentenceWords([]);
+    setRemainingWords([]);
   }
 
   async function finishLesson() {
@@ -475,10 +567,18 @@ export function useLessonPlayer(
         correctCount,
         total: quizAttempts,
       });
-      const data = res.data as { xpEarned: number; newLevel: number };
-      setResult({ xpEarned: data.xpEarned, newLevel: data.newLevel });
+      const data = res.data as {
+        xpEarned: number;
+        newLevel: number;
+        gemsEarned?: number;
+      };
+      setResult({
+        xpEarned: data.xpEarned,
+        newLevel: data.newLevel,
+        gemsEarned: data.gemsEarned ?? 0,
+      });
     } catch {
-      setResult({ xpEarned: 0, newLevel: user.level });
+      setResult({ xpEarned: 0, newLevel: user.level, gemsEarned: 0 });
     } finally {
       setSubmitting(false);
       setFinished(true);
@@ -500,18 +600,96 @@ export function useLessonPlayer(
     setHeartsDepleted(false);
   }
 
-  function selectPair(leftIndex: number, rightIndex: number) {
+  function selectPair(leftDisplayIndex: number, rightDisplayIndex: number) {
     if (answered) return;
-    setSelectedPairs((prev) => ({ ...prev, [leftIndex]: rightIndex }));
+
+    const currentStep = step;
+    if (!currentStep || currentStep.type !== "matching") return;
+    const matchingStep = currentStep as Extract<LessonStep, { type: "matching" }>;
+    const pairs = matchingStep.pairs || [];
+    if (pairs.length === 0) return;
+
+    if (rightDisplayIndex === -1) {
+      setLastSelectedLeft((prev) =>
+        prev === leftDisplayIndex ? null : leftDisplayIndex
+      );
+      setSelectedPairs((prev) => {
+        const next = { ...prev };
+        if (next[leftDisplayIndex] === -1) {
+          delete next[leftDisplayIndex];
+        } else {
+          next[leftDisplayIndex] = -1;
+        }
+        return next;
+      });
+      return;
+    }
+
+    const leftItem = shuffledLeftItems[leftDisplayIndex];
+    const rightItem = shuffledRightItems[rightDisplayIndex];
+    if (!leftItem || !rightItem) return;
+
+    const isCorrect = leftItem.originalIndex === rightItem.originalIndex;
+
+    setPairResults((prev) => ({
+      ...prev,
+      [leftDisplayIndex]: { correct: isCorrect, rightIndex: rightDisplayIndex },
+    }));
+    setSelectedPairs((prev) => ({
+      ...prev,
+      [leftDisplayIndex]: rightDisplayIndex,
+    }));
+    setLastSelectedLeft(null);
+
+    if (isCorrect) {
+      playSuccess();
+    } else {
+      playFail();
+      if (!heartConsumedThisQuestion) {
+        consumeHeartMutation.mutate();
+        setHearts((h) => {
+          const next = Math.max(0, h - 1);
+          if (next === 0) setHeartsDepleted(true);
+          return next;
+        });
+        setHeartConsumedThisQuestion(true);
+      }
+      Animated.sequence([
+        Animated.timing(shake, { toValue: 1, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: -1, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: 1, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: 0, duration: 60, useNativeDriver: true }),
+      ]).start();
+    }
+
+    if (Object.keys({ ...selectedPairs, [leftDisplayIndex]: rightDisplayIndex }).length === pairs.length) {
+      setTimeout(() => {
+        setAnswered(true);
+        setQuizAttempts((a) => a + 1);
+      }, 300);
+    }
   }
 
   function toggleSentenceWord(word: string) {
     if (answered) return;
-    setSelectedSentence((prev) => {
-      if (prev.includes(word)) {
-        return prev.filter((w) => w !== word);
+    setSelectedSentenceWords((prev) => {
+      const existingIdx = prev.indexOf(word);
+      if (existingIdx !== -1) {
+        const next = [...prev];
+        next[existingIdx] = undefined as any;
+        return next;
       }
-      return [...prev, word];
+      const next = [...prev];
+      const emptyIdx = next.findIndex((w) => !w);
+      if (emptyIdx !== -1) {
+        next[emptyIdx] = word;
+      }
+      return next;
+    });
+    setRemainingWords((prev) => {
+      const idx = prev.indexOf(word);
+      if (idx === -1) return [...prev, word];
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
     });
   }
 
@@ -545,7 +723,9 @@ export function useLessonPlayer(
     stepIndex,
     selected,
     selectedPairs,
-    selectedSentence,
+    pairResults,
+    selectedSentenceWords,
+    remainingWords,
     selectedOrder,
     answered,
     correctCount,
@@ -575,6 +755,10 @@ export function useLessonPlayer(
     inRetryPhase,
     hearts,
     heartsDepleted,
+    heartConsumedThisQuestion,
+    lastSelectedLeft,
+    shuffledLeftItems,
+    shuffledRightItems,
     refillHearts,
     dismissHeartsDepleted,
   };

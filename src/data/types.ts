@@ -47,11 +47,17 @@ export type MatchingStep = {
   icon?: string;
 };
 
+export type MatchingPairResult = {
+  correct: boolean;
+  rightIndex: number;
+};
+
 export type SentenceBuilderStep = {
   id: string;
   type: 'sentence_builder';
   question: string;
-  sentenceParts: string[];
+  sentence: string;
+  missingWords: string[];
   correctSentence: string;
   explanation: string;
   icon?: string;
