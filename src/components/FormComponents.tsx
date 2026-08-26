@@ -294,6 +294,14 @@ export function FormOtpInput({
             }
           };
 
+          const handlePaste = (text: string) => {
+            const pasted = text.replace(/\s+/g, "").slice(0, length);
+            if (pasted) {
+              onChange(pasted);
+              inputRefs.current[Math.min(pasted.length, length - 1)]?.focus();
+            }
+          };
+
           return (
             <View
               style={[
@@ -317,6 +325,10 @@ export function FormOtpInput({
                   onKeyPress={({ nativeEvent }) =>
                     handleKeyPress(i, nativeEvent.key)
                   }
+                  {...({
+                    onPaste: ({ nativeEvent }: any) =>
+                      handlePaste(nativeEvent.clipboard),
+                  } as any)}
                   onBlur={onBlur}
                   keyboardType="number-pad"
                   maxLength={1}
@@ -444,7 +456,7 @@ export function FormSelect({
           <>
             <Pressable
               style={[styles.selectTrigger, error && styles.inputError]}
-              onPress={() => setOpen(true)}
+              onPress={() => setOpen(!open)}
             >
               <Text
                 style={[
@@ -456,57 +468,62 @@ export function FormSelect({
               </Text>
               <Text style={styles.selectArrow}>▾</Text>
             </Pressable>
-            <Modal
-              visible={open}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setOpen(false)}
-            >
-              <Pressable
-                style={styles.modalOverlay}
-                onPress={() => setOpen(false)}
+            {open && (
+              <Modal
+                visible={open}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setOpen(false)}
               >
-                <Pressable style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>{label}</Text>
-                  <FlatList
-                    data={options}
-                    keyExtractor={(item) => String(item.value)}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        style={[
-                          styles.modalItem,
-                          item.value === value && styles.modalItemSelected,
-                        ]}
-                        onPress={() => {
-                          onChange(item.value);
-                          setOpen(false);
-                          onBlur();
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.modalItemText,
-                            item.value === value &&
-                              styles.modalItemTextSelected,
-                          ]}
-                        >
-                          {item.label}
-                        </Text>
-                        {item.value === value && (
-                          <Text style={styles.modalCheck}>✓</Text>
-                        )}
-                      </Pressable>
-                    )}
-                  />
+                <Pressable
+                  style={styles.modalOverlay}
+                  onPress={() => setOpen(false)}
+                >
                   <Pressable
-                    onPress={() => setOpen(false)}
-                    style={styles.modalClose}
+                    style={styles.modalContent}
+                    pointerEvents="box-none"
                   >
-                    <Text style={styles.modalCloseText}>Cancel</Text>
+                    <Text style={styles.modalTitle}>{label}</Text>
+                    <FlatList
+                      data={options}
+                      keyExtractor={(item) => String(item.value)}
+                      renderItem={({ item }) => (
+                        <Pressable
+                          style={[
+                            styles.modalItem,
+                            item.value === value && styles.modalItemSelected,
+                          ]}
+                          onPress={() => {
+                            onChange(item.value);
+                            setOpen(false);
+                            onBlur();
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.modalItemText,
+                              item.value === value &&
+                                styles.modalItemTextSelected,
+                            ]}
+                          >
+                            {item.label}
+                          </Text>
+                          {item.value === value && (
+                            <Text style={styles.modalCheck}>✓</Text>
+                          )}
+                        </Pressable>
+                      )}
+                    />
+                    <Pressable
+                      onPress={() => setOpen(false)}
+                      style={styles.modalClose}
+                    >
+                      <Text style={styles.modalCloseText}>Cancel</Text>
+                    </Pressable>
                   </Pressable>
                 </Pressable>
-              </Pressable>
-            </Modal>
+              </Modal>
+            )}
           </>
         )}
       />
@@ -919,20 +936,22 @@ const styles = StyleSheet.create({
   eyeText: { fontSize: 20 },
   otpContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    gap: Spacing.two,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
   },
   otpInput: {
-    flex: 1,
-    aspectRatio: 1,
+    width: 44,
+    height: 44,
     textAlign: "center",
-    fontSize: 24,
-    fontWeight: "900",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1c2742",
     backgroundColor: "#F4F7FF",
     borderWidth: 2,
     borderColor: "#e2e8f4",
-    borderRadius: 9999,
+    borderRadius: 12,
   },
   otpInputFilled: {
     backgroundColor: "#fff",
