@@ -175,6 +175,7 @@ export function useSubmitLessonProgress() {
         };
         xpEarned: number;
         newLevel: number;
+        gemsEarned?: number;
       };
       const updatedModule = result.moduleProgress;
 
@@ -192,6 +193,7 @@ export function useSubmitLessonProgress() {
           lectureId: updatedModule.lectureId,
           status: updatedModule.status,
           xpEarned: result.xpEarned,
+          gemsEarned: result.gemsEarned ?? 0,
           newLevel: result.newLevel,
         });
       }
@@ -202,12 +204,14 @@ export function useSubmitLessonProgress() {
             ? { ...m, ...updatedModule }
             : m,
         );
+        const newGems = (state.user?.gems ?? 0) + (result.gemsEarned ?? 0);
         return {
           user: state.user
             ? {
                 ...state.user,
                 xp: state.user.xp + (result.xpEarned ?? 0),
                 level: result.newLevel ?? state.user.level,
+                gems: newGems,
               }
             : state.user,
           modules,
@@ -336,6 +340,14 @@ export function useDailyQuests() {
   });
 }
 
+export function useQuests() {
+  return useQuery({
+    queryKey: [...queryKeys.gamification.quests, "all"] as const,
+    queryFn: () => api.gamification.getQuests(),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
 export function useShopItems() {
   return useQuery({
     queryKey: queryKeys.shop.items,
@@ -356,10 +368,22 @@ export function usePurchaseItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (itemId: string) => api.shop.purchase(itemId),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.shop.items });
       queryClient.invalidateQueries({ queryKey: queryKeys.shop.inventory });
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gamification.quests });
+      if (data.data?.doubleXpActivated) {
+        useAuthStore.setState((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                doubleXpActive: true,
+                doubleXpSource: "shop_purchase",
+              }
+            : state.user,
+        }));
+      }
     },
   });
 }

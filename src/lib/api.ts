@@ -223,10 +223,19 @@ export const api = {
           user: unknown;
           badges: unknown[];
           dailyQuests: unknown[];
+          weeklyQuests: unknown[];
           inventory: unknown[];
           stats: unknown;
         };
       }>("/api/gamification/profile"),
+    getQuests: () =>
+      request<{
+        success: boolean;
+        data: {
+          daily: unknown[];
+          weekly: unknown[];
+        };
+      }>("/api/gamification/quests"),
     getBadges: () =>
       request<{ success: boolean; data: { badges: unknown[] } }>(
         "/api/gamification/badges",
@@ -338,7 +347,7 @@ export const api = {
     purchase: (itemId: string) =>
       request<{
         success: boolean;
-        data: { success: boolean; item: unknown; remainingCurrency: number };
+        data: { success: boolean; item: unknown; remainingCurrency: number; doubleXpActivated?: boolean };
       }>("/api/shop/purchase", {
         method: "POST",
         body: JSON.stringify({ itemId }),
