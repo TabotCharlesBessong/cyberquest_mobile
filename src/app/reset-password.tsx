@@ -30,7 +30,7 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const form = useZodForm(resetPasswordSchema, { email: '', code: '', newPassword: '' });
+  const form = useZodForm(resetPasswordSchema, { email: email || "", code: "", newPassword: "" });
 
   function onPress() {
     setError('');

@@ -142,7 +142,7 @@ export const api = {
       ),
     getMe: () =>
       request<{ success: boolean; data: { user: unknown } }>("/api/auth/me"),
-    updateProfile: (body: { name?: string; age?: number; avatar?: string; ageGroup?: "A" | "B" }) =>
+    updateProfile: (body: { name?: string; age?: number; avatar?: string; ageGroup?: "A" | "B"; onboarded?: boolean }) =>
       request<{ success: boolean; data: { user: unknown } }>("/api/auth/me", {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -287,10 +287,10 @@ export const api = {
       }>("/api/leagues/me"),
   },
   classroom: {
-    create: (name: string, school: string) =>
+    create: (name: string, description: string) =>
       request<{ success: boolean; data: unknown }>("/api/classroom/", {
         method: "POST",
-        body: JSON.stringify({ name, school }),
+        body: JSON.stringify({ name, description }),
       }),
     join: (code: string) =>
       request<{ success: boolean; data: unknown }>("/api/classroom/join", {
